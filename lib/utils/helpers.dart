@@ -49,3 +49,9 @@ double? calcE1RM(double weightKg, int reps, double rpe) {
   if (p <= 0) return null;
   return weightKg / p * 100.0;
 }
+
+// NUEVA FUNCIÓN para un formato de fecha más completo
+String formatFullDate(DateTime d) {
+  // Formato: Lunes, 11 de agosto de 2025
+  return DateFormat('EEEE, d \'de\' MMMM \'de\' y', 'es').format(d);
+}

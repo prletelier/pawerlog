@@ -45,9 +45,10 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
       'name': _blockNameCtrl.text,
       'start_date': yyyymmdd(startDate),
       'end_date': yyyymmdd(startDate.add(Duration(days: _weeks * 7 - 1))),
+      'days_per_week': _activeDays.length,
     }).select().single();
 
-    final blockId = blockResponse['id'];
+    final blockId = blockResponse['block_id'];
 
     // 2. Crear todos los plan_items para el bloque
     final List<Map<String, dynamic>> planItemsToInsert = [];
@@ -243,7 +244,6 @@ class _ExerciseEditor extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // PEGA ESTA NUEVA VERSIÓN EN SU LUGAR
           Row(
             crossAxisAlignment: CrossAxisAlignment.end, // 'end' alinea mejor los TextFields
             children: [
@@ -300,6 +300,7 @@ class _ExerciseEditor extends StatelessWidget {
           Text('Prescripciones', style: Theme.of(context).textTheme.labelLarge),
           ...exercise.prescriptions.asMap().entries.map((entry) {
             return _PrescriptionEditor(
+              key: UniqueKey(),
               prescription: entry.value,
               onRemove: () {
                 exercise.prescriptions.removeAt(entry.key);
@@ -309,7 +310,20 @@ class _ExerciseEditor extends StatelessWidget {
           }),
           TextButton.icon(
             onPressed: () {
-              exercise.prescriptions.add(PrescribedSet());
+              // Comprueba si ya existe al menos una prescripción
+              if (exercise.prescriptions.isNotEmpty) {
+                // Si existe, toma la última
+                final lastPrescription = exercise.prescriptions.last;
+                // Añade una nueva, copiando los valores de la anterior
+                exercise.prescriptions.add(PrescribedSet(
+                  sets: lastPrescription.sets,
+                  reps: lastPrescription.reps,
+                  effort: lastPrescription.effort,
+                ));
+              } else {
+                // Si no hay ninguna, añade una por defecto
+                exercise.prescriptions.add(PrescribedSet());
+              }
               onChanged();
             },
             icon: const Icon(Icons.add_circle_outline),
@@ -326,7 +340,7 @@ class _PrescriptionEditor extends StatelessWidget {
   final PrescribedSet prescription;
   final VoidCallback onRemove;
 
-  const _PrescriptionEditor({required this.prescription, required this.onRemove});
+  const _PrescriptionEditor({super.key, required this.prescription, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
