@@ -1,0 +1,63 @@
+// lib/widgets/series_row_widget.dart
+import 'package:flutter/material.dart';
+import '../utils/models.dart';
+
+class SeriesRowWidget extends StatelessWidget {
+  final LoggedSet loggedSet;
+  final String seriesLabel;
+  final String repsHint;
+  final String effortHint;
+  final VoidCallback onCheckChanged;
+
+  const SeriesRowWidget({
+    super.key,
+    required this.loggedSet,
+    required this.seriesLabel,
+    required this.repsHint,
+    required this.effortHint,
+    required this.onCheckChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          SizedBox(width: 70, child: Text(seriesLabel, style: Theme.of(context).textTheme.bodyMedium)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextFormField(
+              controller: loggedSet.weightCtrl,
+              decoration: const InputDecoration(labelText: 'Peso'),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextFormField(
+              controller: loggedSet.repsCtrl,
+              decoration: InputDecoration(labelText: 'Reps', hintText: repsHint),
+              keyboardType: TextInputType.number,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextFormField(
+              controller: loggedSet.rpeCtrl,
+              decoration: InputDecoration(labelText: 'RPE/RIR', hintText: effortHint),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+          ),
+          Checkbox(
+            value: loggedSet.isCompleted,
+            onChanged: (bool? value) {
+              onCheckChanged();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
