@@ -3,6 +3,23 @@ import 'package:intl/intl.dart';
 
 String yyyymmdd(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
 
+/// Parsea un string de RPE/RIR (ej. "@8", "RIR 2", "8.5") y devuelve solo el número.
+double? parseRpe(String rpeString) {
+  if (rpeString.isEmpty) return null;
+
+  // Busca cualquier número (incluyendo decimales) en el string.
+  final RegExp numberRegex = RegExp(r'(\d+(\.\d+)?)');
+  final Match? match = numberRegex.firstMatch(rpeString);
+
+  if (match != null) {
+    // Si encuentra un número, lo convierte a double y lo devuelve.
+    return double.tryParse(match.group(0)!);
+  }
+
+  // Si no encuentra ningún número, devuelve null.
+  return null;
+}
+
 String effectiveVariant(String selected, String? tempoDigits) {
   if (selected.toLowerCase() == 'tempo' &&
       tempoDigits != null &&

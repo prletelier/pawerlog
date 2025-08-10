@@ -243,8 +243,9 @@ class _ExerciseEditor extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // PEGA ESTA NUEVA VERSIÓN EN SU LUGAR
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.end, // 'end' alinea mejor los TextFields
             children: [
               Expanded(
                 child: exercise.isAccessory
@@ -263,16 +264,19 @@ class _ExerciseEditor extends StatelessWidget {
                   },
                 ),
               ),
-              SwitchListTile(
-                title: const Text('Acc.'),
+              const SizedBox(width: 8), // Un poco de espacio
+              const Text('Acc.'),
+              Switch(
                 value: exercise.isAccessory,
                 onChanged: (val) {
                   exercise.isAccessory = val;
-                  if (val) exercise.movement = 'Accesorio';
-                  else exercise.movement = 'SQ';
+                  if (val) {
+                    exercise.movement = 'Accesorio';
+                  } else {
+                    exercise.movement = 'SQ';
+                  }
                   onChanged();
                 },
-                dense: true,
               ),
               IconButton(onPressed: onRemove, icon: const Icon(Icons.delete_outline))
             ],

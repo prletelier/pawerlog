@@ -8,6 +8,7 @@ class SeriesRowWidget extends StatelessWidget {
   final String repsHint;
   final String effortHint;
   final VoidCallback onCheckChanged;
+  final VoidCallback? onRemove;
 
   const SeriesRowWidget({
     super.key,
@@ -16,6 +17,7 @@ class SeriesRowWidget extends StatelessWidget {
     required this.repsHint,
     required this.effortHint,
     required this.onCheckChanged,
+    this.onRemove,
   });
 
   @override
@@ -42,14 +44,23 @@ class SeriesRowWidget extends StatelessWidget {
               keyboardType: TextInputType.number,
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextFormField(
-              controller: loggedSet.rpeCtrl,
-              decoration: InputDecoration(labelText: 'RPE/RIR', hintText: effortHint),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          // Solo muestra estos widgets si NO es calentamiento
+          if (!loggedSet.isWarmup) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextFormField(
+                controller: loggedSet.rpeCtrl,
+                decoration: InputDecoration(labelText: 'RPE/RIR', hintText: effortHint),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
             ),
-          ),
+          ],
+          if (onRemove != null)
+            IconButton(
+              onPressed: onRemove, // Llama a la función cuando se presiona
+              icon: const Icon(Icons.remove_circle_outline, size: 20),
+              padding: EdgeInsets.zero,
+            ),
           Checkbox(
             value: loggedSet.isCompleted,
             onChanged: (bool? value) {

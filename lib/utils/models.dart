@@ -24,11 +24,19 @@ class PlannedExercise {
 }
 
 class LoggedSet {
+  String? db_id; // <-- NUEVO: Para guardar el UUID de la fila en Supabase
   int seriesIndex;
   bool isWarmup;
   TextEditingController weightCtrl = TextEditingController();
   TextEditingController repsCtrl = TextEditingController();
   TextEditingController rpeCtrl = TextEditingController();
   bool isCompleted = false;
-  LoggedSet({required this.seriesIndex, required this.isWarmup});
+  LoggedSet(
+      {this.db_id, required this.seriesIndex, required this.isWarmup});
+
+  void dispose() {
+    weightCtrl.dispose();
+    repsCtrl.dispose();
+    rpeCtrl.dispose();
+  }
 }
