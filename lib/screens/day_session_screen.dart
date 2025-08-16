@@ -15,36 +15,81 @@ class DaySessionScreen extends StatefulWidget {
 }
 
 class _DaySessionScreenState extends State<DaySessionScreen> {
-  // El JSON de la prescripción contiene la lista de ejercicios
+  final supa = Supabase.instance.client;
   late final List<dynamic> _exercises;
+  final Set<String> _completedExercises = {};
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // Extraemos la lista de ejercicios del campo 'prescription'
     final prescription = widget.plan['prescription'];
     if (prescription != null && prescription['exercises'] is List) {
       _exercises = prescription['exercises'];
     } else {
       _exercises = [];
     }
+    _loadCompletedExercises();
   }
 
-  // Función para crear un resumen legible de la prescripción
+  // CORREGIDO: Ahora reconstruye el título del ejercicio a partir de la nueva estructura
+  String _buildExerciseTitle(Map<String, dynamic> exerciseData) {
+    String title = exerciseData['movement'] ?? 'Ejercicio sin nombre';
+    // Leemos la nueva lista 'variants' en lugar del antiguo 'variant'
+    final variants = exerciseData['variants'] as List? ?? [];
+    if (variants.isNotEmpty) {
+      title += ' - ${variants.join(' ')}'; // Une las variantes con un espacio
+    }
+    return title;
+  }
+
+  Future<void> _loadCompletedExercises() async {
+    for (final exerciseData in _exercises) {
+      // Usamos la nueva función para obtener el título correcto
+      final title = _buildExerciseTitle(exerciseData);
+      final prescriptions = exerciseData['prescriptions'] as List? ?? [];
+      if (prescriptions.isEmpty) continue;
+
+      int plannedWorkSetsCount = 0;
+      for (var p in prescriptions) {
+        plannedWorkSetsCount += (p['sets'] as int? ?? 1);
+      }
+
+      // Si no hay series efectivas planeadas, no puede estar "completo" en este sentido
+      if (plannedWorkSetsCount == 0) continue;
+
+      final loggedWorkSetsCount = await supa
+          .from('sets')
+          .count(CountOption.exact)
+          .eq('user_id', supa.auth.currentUser!.id)
+          .eq('session_date', yyyymmdd(widget.date))
+          .eq('exercise_name', title) // Busca con el título correcto
+          .eq('is_warmup', false)
+          .eq('is_completed', true); // Contamos solo los sets marcados como completos
+
+      if (loggedWorkSetsCount >= plannedWorkSetsCount) {
+        _completedExercises.add(title);
+      }
+    }
+
+    if(mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   String _buildPrescriptionSummary(Map<String, dynamic> exerciseData) {
     if (exerciseData['prescriptions'] is! List) return "Prescripción no definida.";
-
     final prescriptions = (exerciseData['prescriptions'] as List);
     if (prescriptions.isEmpty) return "Sin series definidas.";
-
-    // Mapea cada bloque de series a un string (ej: "2x5 @8", "4x10-12 RIR2")
     return prescriptions.map((p) {
       final setData = p as Map<String, dynamic>;
       final sets = setData['sets'] ?? 1;
       final reps = setData['reps'] ?? 'N/A';
       final effort = setData['effort'] ?? '';
       return "$sets x $reps $effort";
-    }).join('  |  '); // Une múltiples prescripciones con un separador
+    }).join('  |  ');
   }
 
   @override
@@ -55,7 +100,9 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
       appBar: AppBar(
         title: Text('Sesión del $dayStr'),
       ),
-      body: _exercises.isEmpty
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _exercises.isEmpty
           ? const Center(
         child: Text('No hay ejercicios definidos para este día.'),
       )
@@ -64,16 +111,19 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
         separatorBuilder: (_, __) => const Divider(height: 1.0),
         itemBuilder: (context, index) {
           final exerciseData = _exercises[index] as Map<String, dynamic>;
-          final title =
-              '${exerciseData['movement']} - ${exerciseData['variant']}';
+          // Usamos la nueva función para el título
+          final title = _buildExerciseTitle(exerciseData);
           final summary = _buildPrescriptionSummary(exerciseData);
+          final bool isCompleted = _completedExercises.contains(title);
 
           return ListTile(
+            tileColor: isCompleted ? Theme.of(context).colorScheme.primary.withOpacity(0.05) : null,
             title: Text(title),
             subtitle: Text(summary),
-            trailing: const Icon(Icons.fitness_center),
+            trailing: isCompleted
+                ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
+                : const Icon(Icons.fitness_center),
             onTap: () {
-              // Navega a la pantalla de registro de series para este ejercicio
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -82,11 +132,28 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
                     exerciseData: exerciseData,
                   ),
                 ),
-              );
+              ).then((result) {
+                if (result == true) {
+                  setState(() { _isLoading = true; });
+                  _loadCompletedExercises();
+                }
+              });
             },
           );
         },
       ),
+      floatingActionButton: !_isLoading && _exercises.isNotEmpty && _completedExercises.length == _exercises.length
+          ? FloatingActionButton.extended(
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('✅ ¡Sesión Finalizada!')),
+          );
+          Navigator.of(context).pop();
+        },
+        label: const Text('Finalizar Sesión'),
+        icon: const Icon(Icons.check),
+      )
+          : null,
     );
   }
 }

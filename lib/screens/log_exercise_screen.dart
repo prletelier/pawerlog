@@ -43,8 +43,12 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
   @override
   void initState() {
     super.initState();
-    _title =
-    '${widget.exerciseData['movement']} - ${widget.exerciseData['variant']}';
+    String tempTitle = widget.exerciseData['movement'] ?? 'Ejercicio';
+    final variants = widget.exerciseData['variants'] as List? ?? [];
+    if (variants.isNotEmpty) {
+      tempTitle += ' - ${variants.join(' ')}';
+    }
+    _title = tempTitle;
     _loadAndBuildState();
   }
 

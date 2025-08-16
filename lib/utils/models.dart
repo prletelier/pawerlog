@@ -10,17 +10,19 @@ class PrescribedSet {
 
 class PlannedExercise {
   String movement;
-  String variant;
-  String? tempoDigits;
+  List<String> selectedVariants; // Para guardar las variantes seleccionadas
+  String tempoDigits; // Para los dígitos del tempo
   bool isAccessory;
   List<PrescribedSet> prescriptions;
+
   PlannedExercise({
     this.movement = 'SQ',
-    this.variant = 'Competición',
-    this.tempoDigits,
+    List<String>? selectedVariants, // Ahora recibe una lista opcional
+    this.tempoDigits = '',
     this.isAccessory = false,
     List<PrescribedSet>? prescriptions,
-  }) : prescriptions = prescriptions ?? [PrescribedSet()];
+  })  : this.selectedVariants = selectedVariants ?? ['Competición'], // Si no se provee, el default es 'Competición'
+        this.prescriptions = prescriptions ?? [PrescribedSet()];
 }
 
 class LoggedSet {

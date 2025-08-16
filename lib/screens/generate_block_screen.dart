@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/helpers.dart';
 import '../utils/models.dart';
 import 'home_screen.dart';
+import 'dart:math';
 
 class GenerateBlockScreen extends StatefulWidget {
   const GenerateBlockScreen({super.key});
@@ -16,20 +17,67 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
   final supa = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
 
-  // Configuración del bloque
-  final _blockNameCtrl = TextEditingController(text: 'Bloque 8');
+  final _blockNameCtrl = TextEditingController(text: 'Bloque 1');
   int _weeks = 4;
-  final Set<int> _activeDays = {1, 2, 4, 5}; // L, M, J, V por defecto
+  final Set<int> _activeDays = {1, 2, 4, 5};
+  late DateTime _startDate;
 
-  // Datos para los formularios de cada día
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _basicMovements = [];
+  List<Map<String, dynamic>> _accessoryMovements = [];
+  List<Map<String, dynamic>> _variants = [];
+
   final Map<int, List<PlannedExercise>> _exercisesPerDay = {};
 
   @override
   void initState() {
     super.initState();
-    // Inicializa con un ejercicio por defecto para los días activos
+    _startDate = _getNextMonday(DateTime.now());
     for (var day in _activeDays) {
       _exercisesPerDay[day] = [PlannedExercise()];
+    }
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    try {
+      final responses = await Future.wait([
+        supa.from('movements').select().order('name', ascending: true),
+        supa.from('variants').select().order('name', ascending: true),
+      ]);
+
+      final movementsRes = responses[0] as List<dynamic>;
+      final variantsRes = responses[1] as List<dynamic>;
+
+      if (mounted) {
+        setState(() {
+          _variants = List<Map<String, dynamic>>.from(variantsRes);
+          _basicMovements = List<Map<String, dynamic>>.from(
+              movementsRes.where((m) => m['type'] == 'Básico'));
+          _accessoryMovements = List<Map<String, dynamic>>.from(
+              movementsRes.where((m) => m['type'] == 'Accesorio'));
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar datos iniciales: $e')),
+        );
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _selectStartDate() async {
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (pickedDate != null && pickedDate != _startDate) {
+      setState(() => _startDate = pickedDate);
     }
   }
 
@@ -37,45 +85,35 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final uid = supa.auth.currentUser!.id;
-    final startDate = _getNextMonday(DateTime.now());
+    final startDate = _startDate;
 
-    // 1. Crear el registro del bloque
     final blockResponse = await supa.from('blocks').insert({
-      'user_id': uid,
-      'name': _blockNameCtrl.text,
+      'user_id': uid, 'name': _blockNameCtrl.text,
       'start_date': yyyymmdd(startDate),
       'end_date': yyyymmdd(startDate.add(Duration(days: _weeks * 7 - 1))),
       'days_per_week': _activeDays.length,
-    }).select().single();
-
+    }).select('block_id').single();
     final blockId = blockResponse['block_id'];
 
-    // 2. Crear todos los plan_items para el bloque
     final List<Map<String, dynamic>> planItemsToInsert = [];
     for (int week = 0; week < _weeks; week++) {
       for (int dayOfWeek in _activeDays.toList()..sort()) {
         final date = startDate.add(Duration(days: (week * 7) + (dayOfWeek - 1)));
         final exercisesForThisDay = _exercisesPerDay[dayOfWeek] ?? [];
-
         if (exercisesForThisDay.isNotEmpty) {
           planItemsToInsert.add({
-            'user_id': uid, // Asegúrate de que esta columna exista en tu tabla
-            'block_id': blockId,
+            'user_id': uid, 'block_id': blockId,
             'planned_date': yyyymmdd(date),
-            // El campo 'prescription' guardará toda la rutina del día
             'prescription': {
               'exercises': exercisesForThisDay.map((ex) {
-                // Combina variante y tempo si es necesario
-                final finalVariant = effectiveVariant(ex.variant, ex.tempoDigits);
                 return {
                   'movement': ex.movement,
-                  'variant': finalVariant,
+                  'variants': ex.selectedVariants, // CORREGIDO: Guarda la lista de variantes
+                  'tempo_digits': ex.tempoDigits,
                   'isAccessory': ex.isAccessory,
-                  'prescriptions': ex.prescriptions.map((p) => {
-                    'sets': p.sets,
-                    'reps': p.reps,
-                    'effort': p.effort,
-                  }).toList(),
+                  'prescriptions': ex.prescriptions
+                      .map((p) => {'sets': p.sets, 'reps': p.reps, 'effort': p.effort,})
+                      .toList(),
                 };
               }).toList(),
             },
@@ -92,7 +130,6 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Bloque generado correctamente.')),
       );
-      // Vuelve a la pantalla de inicio y la refresca
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -104,19 +141,19 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
   DateTime _getNextMonday(DateTime date) {
     var checkDate = DateTime(date.year, date.month, date.day);
     if (checkDate.weekday == DateTime.monday) return checkDate;
-    return checkDate.add(Duration(days: (DateTime.monday - checkDate.weekday + 7) % 7));
+    return checkDate
+        .add(Duration(days: (DateTime.monday - checkDate.weekday + 7) % 7));
   }
 
   @override
   Widget build(BuildContext context) {
-    final dayLabels = {1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado', 7: 'Domingo'};
-
-    // 1. CREAR UNA LISTA ORDENADA PRIMERO
+    final dayLabels = { 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado', 7: 'Domingo' };
     final sortedActiveDays = _activeDays.toList()..sort();
-
     return Scaffold(
       appBar: AppBar(title: const Text('Generador de Bloque')),
-      body: Form(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16.0),
@@ -127,16 +164,24 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
               validator: (val) => (val?.isEmpty ?? true) ? 'Ingresa un nombre' : null,
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                const Text('Semanas:'),
-                const SizedBox(width: 16),
-                DropdownButton<int>(
-                  value: _weeks,
-                  items: [3, 4, 5, 6].map((w) => DropdownMenuItem(value: w, child: Text('$w'))).toList(),
-                  onChanged: (val) => setState(() => _weeks = val ?? 4),
-                ),
-              ],
+            Row(children: [
+              const Text('Semanas:'),
+              const SizedBox(width: 16),
+              DropdownButton<int>(
+                value: _weeks,
+                items: List.generate(10, (index) => index + 1)
+                    .map((w) => DropdownMenuItem(value: w, child: Text('$w')))
+                    .toList(),
+                onChanged: (val) => setState(() => _weeks = val ?? 4),
+              ),
+            ],),
+            const SizedBox(height: 8),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.calendar_today),
+              title: const Text('Fecha de Inicio'),
+              subtitle: Text(yyyymmdd(_startDate)),
+              onTap: _selectStartDate,
             ),
             const SizedBox(height: 16),
             const Text('Días de entrenamiento:'),
@@ -145,7 +190,7 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
               children: dayLabels.entries.map((entry) {
                 final isSelected = _activeDays.contains(entry.key);
                 return FilterChip(
-                  label: Text(entry.value.substring(0, 3)), // "Lun", "Mar", etc.
+                  label: Text(entry.value.substring(0, 3)),
                   selected: isSelected,
                   onSelected: (selected) {
                     setState(() {
@@ -161,12 +206,14 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
               }).toList(),
             ),
             const Divider(height: 32),
-
-            // 2. USAR LA LISTA YA ORDENADA PARA CREAR LOS WIDGETS
             for (final dayOfWeek in sortedActiveDays)
               _DayEditor(
+                key: ValueKey('day_editor_$dayOfWeek'),
                 dayTitle: dayLabels[dayOfWeek]!,
                 exercises: _exercisesPerDay[dayOfWeek]!,
+                basicMovements: _basicMovements,
+                accessoryMovements: _accessoryMovements,
+                variants: _variants,
                 onChanged: () => setState(() {}),
               ),
           ],
@@ -174,20 +221,27 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _generateBlock,
-        label: const Text('Generar'),
+        label: const Text('Generar Bloque'),
         icon: const Icon(Icons.check),
       ),
     );
   }
 }
 
-// Widget para editar un día completo
 class _DayEditor extends StatelessWidget {
   final String dayTitle;
   final List<PlannedExercise> exercises;
+  final List<Map<String, dynamic>> basicMovements;
+  final List<Map<String, dynamic>> accessoryMovements;
+  final List<Map<String, dynamic>> variants;
   final VoidCallback onChanged;
 
-  const _DayEditor({ required this.dayTitle, required this.exercises, required this.onChanged });
+  const _DayEditor({
+    super.key, required this.dayTitle,
+    required this.exercises, required this.basicMovements,
+    required this.accessoryMovements, required this.variants,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -201,7 +255,11 @@ class _DayEditor extends StatelessWidget {
             Text(dayTitle, style: Theme.of(context).textTheme.titleLarge),
             ...exercises.asMap().entries.map((entry) {
               return _ExerciseEditor(
+                key: ValueKey(entry.value),
                 exercise: entry.value,
+                basicMovements: basicMovements,
+                accessoryMovements: accessoryMovements,
+                variants: variants,
                 onRemove: () {
                   exercises.removeAt(entry.key);
                   onChanged();
@@ -225,55 +283,73 @@ class _DayEditor extends StatelessWidget {
   }
 }
 
-// Widget para editar un solo ejercicio y sus prescripciones
+// CORREGIDO: Widget completo con la nueva lógica de variantes
 class _ExerciseEditor extends StatelessWidget {
   final PlannedExercise exercise;
+  final List<Map<String, dynamic>> basicMovements;
+  final List<Map<String, dynamic>> accessoryMovements;
+  final List<Map<String, dynamic>> variants;
   final VoidCallback onRemove;
   final VoidCallback onChanged;
 
-  const _ExerciseEditor({ required this.exercise, required this.onRemove, required this.onChanged });
+  const _ExerciseEditor({
+    super.key, required this.exercise,
+    required this.basicMovements, required this.accessoryMovements,
+    required this.variants, required this.onRemove,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Listas para los dropdowns
-    final movements = ['SQ', 'BP', 'DL'];
-    final variants = ['Competición', 'Tempo', 'Paused', 'Larsen', 'Spoto', 'Custom'];
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end, // 'end' alinea mejor los TextFields
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
                 child: exercise.isAccessory
-                    ? TextFormField(
-                  initialValue: exercise.movement,
-                  decoration: const InputDecoration(labelText: 'Nombre del Accesorio'),
-                  onChanged: (val) => exercise.movement = val,
+                    ? DropdownButtonFormField<String>(
+                  value: accessoryMovements.any((m) => m['name'] == exercise.movement) ? exercise.movement : null,
+                  hint: const Text('Selecciona un accesorio'),
+                  decoration: const InputDecoration(labelText: 'Accesorio'),
+                  items: accessoryMovements.map((m) => DropdownMenuItem<String>(
+                    value: m['name'] as String,
+                    child: Text(m['name'] as String),
+                  )).toList(),
+                  onChanged: (val) {
+                    exercise.movement = val ?? '';
+                    onChanged();
+                  },
                 )
                     : DropdownButtonFormField<String>(
-                  value: exercise.movement,
+                  value: basicMovements.any((m) => m['name'] == exercise.movement) ? exercise.movement : null,
+                  hint: const Text('Selecciona un movimiento'),
                   decoration: const InputDecoration(labelText: 'Movimiento'),
-                  items: movements.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+                  items: basicMovements.map((m) => DropdownMenuItem<String>(
+                    value: m['name'] as String,
+                    child: Text(m['name'] as String),
+                  )).toList(),
                   onChanged: (val) {
-                    exercise.movement = val ?? 'SQ';
+                    exercise.movement = val ?? '';
                     onChanged();
                   },
                 ),
               ),
-              const SizedBox(width: 8), // Un poco de espacio
+              const SizedBox(width: 8),
               const Text('Acc.'),
               Switch(
                 value: exercise.isAccessory,
                 onChanged: (val) {
                   exercise.isAccessory = val;
                   if (val) {
-                    exercise.movement = 'Accesorio';
+                    exercise.movement = '';
+                    exercise.selectedVariants = [];
                   } else {
-                    exercise.movement = 'SQ';
+                    exercise.movement = '';
+                    exercise.selectedVariants = ['Competición'];
                   }
                   onChanged();
                 },
@@ -281,21 +357,45 @@ class _ExerciseEditor extends StatelessWidget {
               IconButton(onPressed: onRemove, icon: const Icon(Icons.delete_outline))
             ],
           ),
-          if (!exercise.isAccessory)
-            TextFormField(
-                initialValue: exercise.variant,
-                decoration: const InputDecoration(labelText: 'Variante'),
-                onChanged: (val) {
-                  exercise.variant = val;
-                  onChanged();
-                }
+
+          if (!exercise.isAccessory) ...[
+            const SizedBox(height: 16),
+            Text('Variantes', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8.0,
+              runSpacing: 4.0,
+              children: variants.map((variant) {
+                final vName = variant['name'] as String;
+                final isSelected = exercise.selectedVariants.contains(vName);
+                return FilterChip(
+                  label: Text(vName),
+                  selectedColor: Theme.of(context).colorScheme.primary,
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    if (selected) {
+                      exercise.selectedVariants.add(vName);
+                    } else {
+                      exercise.selectedVariants.remove(vName);
+                    }
+                    onChanged();
+                  },
+                );
+              }).toList(),
             ),
-          if (exercise.variant.toLowerCase() == 'tempo' && !exercise.isAccessory)
-            TextFormField(
-              decoration: const InputDecoration(labelText: 'Dígitos Tempo (ej. 420)'),
-              keyboardType: TextInputType.number,
-              onChanged: (val) => exercise.tempoDigits = val,
+          ],
+
+          if (exercise.selectedVariants.contains('Tempo'))
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: TextFormField(
+                initialValue: exercise.tempoDigits,
+                decoration: const InputDecoration(labelText: 'Dígitos Tempo (ej. 420)'),
+                keyboardType: TextInputType.number,
+                onChanged: (val) => exercise.tempoDigits = val,
+              ),
             ),
+
           const SizedBox(height: 12),
           Text('Prescripciones', style: Theme.of(context).textTheme.labelLarge),
           ...exercise.prescriptions.asMap().entries.map((entry) {
@@ -310,18 +410,14 @@ class _ExerciseEditor extends StatelessWidget {
           }),
           TextButton.icon(
             onPressed: () {
-              // Comprueba si ya existe al menos una prescripción
               if (exercise.prescriptions.isNotEmpty) {
-                // Si existe, toma la última
                 final lastPrescription = exercise.prescriptions.last;
-                // Añade una nueva, copiando los valores de la anterior
                 exercise.prescriptions.add(PrescribedSet(
                   sets: lastPrescription.sets,
                   reps: lastPrescription.reps,
                   effort: lastPrescription.effort,
                 ));
               } else {
-                // Si no hay ninguna, añade una por defecto
                 exercise.prescriptions.add(PrescribedSet());
               }
               onChanged();
@@ -335,12 +431,12 @@ class _ExerciseEditor extends StatelessWidget {
   }
 }
 
-// Widget para editar una línea de prescripción (Sets x Reps @Esfuerzo)
 class _PrescriptionEditor extends StatelessWidget {
   final PrescribedSet prescription;
   final VoidCallback onRemove;
 
-  const _PrescriptionEditor({super.key, required this.prescription, required this.onRemove});
+  const _PrescriptionEditor(
+      {super.key, required this.prescription, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -356,12 +452,14 @@ class _PrescriptionEditor extends StatelessWidget {
             onChanged: (val) => prescription.sets = int.tryParse(val) ?? 1,
           ),
         ),
-        const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text('x')),
+        const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4), child: Text('x')),
         Expanded(
           flex: 3,
           child: TextFormField(
             initialValue: prescription.reps,
-            decoration: const InputDecoration(labelText: 'Reps', hintText: '5 o 10-12'),
+            decoration:
+            const InputDecoration(labelText: 'Reps', hintText: '5 o 10-12'),
             onChanged: (val) => prescription.reps = val,
           ),
         ),
@@ -370,11 +468,14 @@ class _PrescriptionEditor extends StatelessWidget {
           flex: 3,
           child: TextFormField(
             initialValue: prescription.effort,
-            decoration: const InputDecoration(labelText: 'Esfuerzo', hintText: '@8, RIR2'),
+            decoration: const InputDecoration(
+                labelText: 'Esfuerzo', hintText: '@8, RIR2'),
             onChanged: (val) => prescription.effort = val,
           ),
         ),
-        IconButton(onPressed: onRemove, icon: const Icon(Icons.remove_circle_outline, size: 20))
+        IconButton(
+            onPressed: onRemove,
+            icon: const Icon(Icons.remove_circle_outline, size: 20))
       ],
     );
   }
