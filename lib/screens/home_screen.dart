@@ -15,14 +15,46 @@ class _HomeScreenState extends State<HomeScreen> {
   final supa = Supabase.instance.client;
   DateTime _cursorDate = DateTime.now();
 
+  // MODIFICADO: Ahora carga el plan, la sesión Y los sets completados
+  Future<Map<String, dynamic>> _loadDayData(DateTime date) async {
+    final uid = supa.auth.currentUser!.id;
+    final day = yyyymmdd(date);
+
+    final responses = await Future.wait([
+      supa
+          .from('plan_items')
+          .select(
+          'planned_date, prescription, block_id, blocks(name, start_date, days_per_week)')
+          .eq('user_id', uid)
+          .eq('planned_date', day)
+          .maybeSingle(),
+      supa
+          .from('sessions')
+          .select('status, started_at, duration_min')
+          .eq('user_id', uid)
+          .eq('session_date', day)
+          .limit(1)
+          .maybeSingle(),
+      // NUEVA CONSULTA: Traemos los sets guardados para este día
+      supa
+          .from('sets')
+          .select('exercise_name, weight, reps, rpe, is_warmup, is_completed')
+          .eq('user_id', uid)
+          .eq('session_date', day)
+          .eq('is_completed', true)
+          .order('created_at', ascending: true),
+    ]);
+
+    return {
+      'plan': responses[0],
+      'session': responses[1],
+      'logged_sets': responses[2], // Añadimos los sets al resultado
+    };
+  }
+
   String _buildPrescriptionSummary(Map<String, dynamic> exerciseData) {
-    if (exerciseData['prescriptions'] is! List) {
-      return "Prescripción no definida.";
-    }
-
-    final prescriptions = (exerciseData['prescriptions'] as List);
+    final prescriptions = (exerciseData['prescriptions'] as List? ?? []);
     if (prescriptions.isEmpty) return "Sin series definidas.";
-
     return prescriptions.map((p) {
       final setData = p as Map<String, dynamic>;
       final sets = setData['sets'] ?? 1;
@@ -32,30 +64,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }).join('  |  ');
   }
 
-  // --- NUEVA FUNCIÓN DE AYUDA ---
-  // Reutilizamos la lógica para construir el título correctamente
   String _buildExerciseTitle(Map<String, dynamic> exerciseData) {
     String title = exerciseData['movement'] ?? 'Ejercicio sin nombre';
-    // Leemos la nueva lista 'variants' en lugar del antiguo 'variant'
     final variants = exerciseData['variants'] as List? ?? [];
     if (variants.isNotEmpty) {
-      title += ' - ${variants.join(' ')}'; // Une las variantes con un espacio
+      title += ' - ${variants.join(' ')}';
     }
     return title;
-  }
-  // --------------------------------
-
-  Future<Map<String, dynamic>?> _loadDayPlan(DateTime date) async {
-    final uid = supa.auth.currentUser!.id;
-    final day = yyyymmdd(date);
-    final response = await supa
-        .from('plan_items')
-        .select(
-        'planned_date, prescription, block_id, blocks(name, start_date, days_per_week)')
-        .eq('user_id', uid)
-        .eq('planned_date', day)
-        .maybeSingle();
-    return response;
   }
 
   @override
@@ -89,8 +104,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      body: FutureBuilder<Map<String, dynamic>?>(
-        future: _loadDayPlan(_cursorDate),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _loadDayData(_cursorDate),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -98,103 +113,137 @@ class _HomeScreenState extends State<HomeScreen> {
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
-          if (!snapshot.hasData || snapshot.data == null) {
+
+          final plan = snapshot.data?['plan'];
+          final session = snapshot.data?['session'];
+          // Extraemos los nuevos datos
+          final loggedSets = snapshot.data?['logged_sets'] as List<dynamic>? ?? [];
+          final sessionStatus = session?['status'] ?? 'planificada';
+
+          if (plan == null) {
             return const Center(
                 child: Text('No hay entrenamiento planificado para este día.'));
           }
 
-          final plan = snapshot.data!;
+          Widget mainButton = ElevatedButton.icon(
+            icon: Icon(sessionStatus == 'planificada' ? Icons.play_arrow : Icons.directions_run),
+            label: Text(sessionStatus == 'planificada' ? 'Comenzar Sesión' : 'Continuar Sesión'),
+            // EN home_screen.dart, en el onPressed del mainButton
+            onPressed: () async {
+              try {
+                Map<String, dynamic>? updatedSession = session;
+                if (sessionStatus == 'planificada') {
+                  updatedSession = await supa.from('sessions').upsert({
+                    'user_id': supa.auth.currentUser!.id,
+                    'session_date': yyyymmdd(_cursorDate),
+                    'status': 'activa',
+                    'started_at': DateTime.now().toUtc().toIso8601String(),
+                  }).select().single();
+                }
+
+                // El 'await' es clave para esperar a que vuelvas de la pantalla
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => DaySessionScreen(
+                        date: _cursorDate,
+                        plan: plan,
+                        initialSessionData: updatedSession,
+                      )),
+                );
+                // Este setState se ejecutará DESPUÉS de que vuelvas.
+                setState(() {});
+
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: ${e.toString()}', style: const TextStyle(color: Colors.white)),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+          );
+
           final plannedDateStr = plan['planned_date'] as String?;
           final blockId = plan['block_id'];
           final blockData = plan['blocks'] as Map<String, dynamic>?;
+          final prescription = plan['prescription'] as Map<String, dynamic>?;
+          // Obtenemos los ejercicios planeados como antes
+          final plannedExercises = prescription?['exercises'] as List? ?? [];
 
-          if (plannedDateStr == null || blockId == null || blockData == null) {
-            return const Center(child: Text('Datos del plan incompletos.'));
+          // --- INICIO DE LA LÓGICA MODIFICADA ---
+          // Agrupamos los sets guardados por nombre de ejercicio
+          final Map<String, List<dynamic>> groupedLoggedSets = {};
+          for (var set in loggedSets) {
+            final exerciseName = set['exercise_name'];
+            if (exerciseName != null) {
+              groupedLoggedSets.putIfAbsent(exerciseName, () => []).add(set);
+            }
           }
 
-          final blockName = blockData['name'] as String? ?? 'Bloque';
-          final daysPerWeek = blockData['days_per_week'] as int?;
-          final plannedDate = DateTime.parse(plannedDateStr);
+          return Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              children: [
+                Card(
+                  child: Column(
+                    children: [
+                      // El FutureBuilder para el título se mantiene igual
+                      if (plannedDateStr != null && blockId != null && blockData != null)
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: supa.from('plan_items').select('planned_date').eq('block_id', blockId).order('planned_date', ascending: true),
+                          builder: (context, planItemsSnapshot) {
+                            if (!planItemsSnapshot.hasData) return ListTile(title: Text(blockData['name'] ?? 'Bloque'), subtitle: Text(formatFullDate(DateTime.parse(plannedDateStr))));
 
-          return FutureBuilder<List<Map<String, dynamic>>>(
-            future: supa
-                .from('plan_items')
-                .select('planned_date')
-                .eq('block_id', blockId)
-                .order('planned_date', ascending: true),
-            builder: (context, planItemsSnapshot) {
-              if (!planItemsSnapshot.hasData ||
-                  planItemsSnapshot.data == null) {
-                return ListTile(
-                    title: Text(blockName),
-                    subtitle: Text(formatFullDate(plannedDate)));
-              }
+                            final trainingDays = planItemsSnapshot.data!.map((item) => item['planned_date'] as String).toList();
+                            final overallDayNumber = trainingDays.indexOf(plannedDateStr) + 1;
+                            final daysPerWeek = blockData['days_per_week'] as int?;
+                            final dayDisplayNumber = (daysPerWeek != null && daysPerWeek > 0) ? (overallDayNumber - 1) % daysPerWeek + 1 : overallDayNumber;
+                            final newTitle = '${blockData['name'] ?? 'Bloque'} - Día $dayDisplayNumber';
 
-              final trainingDays = planItemsSnapshot.data!
-                  .map((item) => item['planned_date'] as String)
-                  .toList();
-              final overallDayNumber =
-                  trainingDays.indexOf(plannedDateStr) + 1;
+                            return ListTile(title: Text(newTitle), subtitle: Text(formatFullDate(DateTime.parse(plannedDateStr))));
+                          },
+                        )
+                      else
+                        const ListTile(title: Text("Resumen del día"), subtitle: Text("Toca comenzar para ver los ejercicios")),
 
-              final dayDisplayNumber = (daysPerWeek != null && daysPerWeek > 0)
-                  ? (overallDayNumber - 1) % daysPerWeek + 1
-                  : overallDayNumber;
+                      // --- UI MODIFICADA ---
+                      // Si la sesión NO está planificada (ya empezó o terminó) Y hay sets guardados,
+                      // mostramos los datos reales. Si no, mostramos el plan.
+                      if (sessionStatus != 'planificada' && loggedSets.isNotEmpty)
+                      // Mostramos los datos REALES
+                        ...groupedLoggedSets.entries.map((entry) {
+                          final exerciseTitle = entry.key;
+                          final sets = entry.value;
+                          final summary = sets
+                              .where((s) => s['is_warmup'] == false)
+                              .map((s) => "${s['weight']}kg x ${s['reps']} ${s['rpe'] ?? ''}")
+                              .join(' | ');
 
-              final fullDateString = formatFullDate(plannedDate);
-              final newTitle = '$blockName - Día $dayDisplayNumber';
-
-              final prescription =
-              plan['prescription'] as Map<String, dynamic>?;
-              final exercises = prescription?['exercises'] as List? ?? [];
-
-              return Column(
-                children: [
-                  ListTile(
-                    title: Text(newTitle),
-                    subtitle: Text(fullDateString),
-                    trailing: const Icon(Icons.arrow_forward_ios),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => DaySessionScreen(
-                              date: _cursorDate, plan: plan)),
-                    ).then((_) => setState(() {})),
-                  ),
-                  const Divider(height: 1),
-
-                  // La lista de ejercicios mostrada directamente
-                  if (exercises.isNotEmpty)
-                  // Usamos un ListView para que sea scrollable si la lista es muy larga
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: exercises.length,
-                        itemBuilder: (context, index) {
-                          final exerciseData =
-                          exercises[index] as Map<String, dynamic>;
-
-                          // --- LÍNEA CORREGIDA ---
-                          // Usamos la nueva función de ayuda para construir el título
-                          final title = _buildExerciseTitle(exerciseData);
-                          // -------------------------
-
-                          final summary =
-                          _buildPrescriptionSummary(exerciseData);
                           return ListTile(
                             dense: true,
-                            title: Text(title),
-                            subtitle: Text(summary),
+                            title: Text(exerciseTitle),
+                            subtitle: Text(summary, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
                           );
-                        },
-                      ),
-                    )
-                  else
-                    const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text('No hay ejercicios definidos para este día.'),
-                    )
-                ],
-              );
-            },
+                        }).toList()
+                      else
+                      // Mostramos el PLAN
+                        ...plannedExercises.map((exerciseData) {
+                          final title = _buildExerciseTitle(exerciseData);
+                          final summary = _buildPrescriptionSummary(exerciseData);
+                          return ListTile(dense: true, title: Text(title), subtitle: Text(summary));
+                        }).toList(),
+                      // --- FIN UI MODIFICADA ---
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                mainButton,
+              ],
+            ),
           );
         },
       ),

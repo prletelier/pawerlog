@@ -43,13 +43,17 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
   @override
   void initState() {
     super.initState();
-    String tempTitle = widget.exerciseData['movement'] ?? 'Ejercicio';
-    final variants = widget.exerciseData['variants'] as List? ?? [];
-    if (variants.isNotEmpty) {
-      tempTitle += ' - ${variants.join(' ')}';
-    }
-    _title = tempTitle;
+    _title = _buildExerciseTitle(widget.exerciseData);
     _loadAndBuildState();
+  }
+
+  String _buildExerciseTitle(Map<String, dynamic> exerciseData) {
+    String title = exerciseData['movement'] ?? 'Ejercicio sin nombre';
+    final variants = exerciseData['variants'] as List? ?? [];
+    if (variants.isNotEmpty) {
+      title += ' - ${variants.join(' ')}';
+    }
+    return title;
   }
 
   Future<void> _loadAndBuildState() async {
@@ -84,8 +88,7 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
           set.weightCtrl.text = data['weight']?.toString() ?? '';
           set.repsCtrl.text = data['reps']?.toString() ?? '';
           set.rpeCtrl.text = data['rpe']?.toString() ?? '';
-          set.isCompleted = data['is_completed'] ?? false; // Leemos el nuevo estado
-
+          set.isCompleted = data['is_completed'] ?? false;
           if (set.isWarmup) {
             _warmupSets.add(set);
           } else {
@@ -122,77 +125,75 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
   }
 
   Future<void> _handleSetCompletion(LoggedSet set) async {
-    // Si la serie ya está completa, la desmarcamos y borramos.
-    if (set.isCompleted) {
-      await _handleSetRemoval(set);
-      return;
-    }
-
-    // Si no está completa, la guardamos.
-    final weight = double.tryParse(set.weightCtrl.text);
-    final reps = int.tryParse(set.repsCtrl.text);
-    if (weight == null || reps == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor, ingresa peso y reps.')),
-        );
+    try {
+      final weight = double.tryParse(set.weightCtrl.text);
+      final reps = int.tryParse(set.repsCtrl.text);
+      if (weight == null || reps == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Por favor, ingresa peso y reps.')),
+          );
+        }
+        return;
       }
-      return;
+
+      final uid = supa.auth.currentUser!.id;
+      final day = yyyymmdd(widget.date);
+      final sessionRes = await supa
+          .from('sessions')
+          .upsert({'user_id': uid, 'session_date': day}).select().single();
+      final sessionId = sessionRes['session_id'];
+
+      final newCompletionState = !set.isCompleted;
+
+      final Map<String, dynamic> setData = {
+        'session_id': sessionId, 'user_id': uid, 'session_date': day,
+        'exercise_name': _title, 'is_warmup': set.isWarmup,
+        'set_index': set.seriesIndex, 'weight': weight,
+        'reps': reps, 'rpe': set.rpeCtrl.text,
+        'is_completed': newCompletionState,
+      };
+
+      if (set.db_id != null) {
+        setData['set_id'] = set.db_id;
+      }
+
+      final savedSetData =
+      await supa.from('sets').upsert(setData).select().single();
+
+      setState(() {
+        set.isCompleted = newCompletionState;
+        set.db_id = savedSetData['set_id'];
+      });
+
+      if (newCompletionState == true) {
+        _startRestTimer(isWarmup: set.isWarmup);
+      } else {
+        _restTimer?.cancel();
+        if(mounted) setState(() => _restSecondsRemaining = 0);
+      }
+    } catch (e) {
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red));
+      }
     }
-
-    final uid = supa.auth.currentUser!.id;
-    final day = yyyymmdd(widget.date);
-
-    final sessionRes = await supa
-        .from('sessions')
-        .upsert({'user_id': uid, 'session_date': day}).select().single();
-    final sessionId = sessionRes['session_id'];
-
-    final Map<String, dynamic> setData = {
-      'session_id': sessionId, 'user_id': uid, 'session_date': day,
-      'exercise_name': _title, 'is_warmup': set.isWarmup,
-      'set_index': set.seriesIndex, 'weight': weight,
-      'reps': reps,
-      'rpe': set.rpeCtrl.text,
-      'is_completed': true, // Al marcarla, siempre la ponemos como completa.
-    };
-
-    if (set.db_id != null) {
-      setData['set_id'] = set.db_id;
-    }
-
-    final savedSetData =
-    await supa.from('sets').upsert(setData).select().single();
-
-    setState(() {
-      set.isCompleted = true;
-      set.db_id = savedSetData['set_id'];
-    });
-
-    _startRestTimer(isWarmup: set.isWarmup);
   }
 
-  // La función de borrado se mantiene para los botones de eliminar
   Future<void> _handleSetRemoval(LoggedSet setToRemove) async {
-    // 1. Detenemos cualquier timer activo.
     _restTimer?.cancel();
-    if (mounted) setState(() => _restSecondsRemaining = 0);
+    if(mounted) setState(() => _restSecondsRemaining = 0);
 
-    // 2. Si la serie existe en la base de datos (tiene un db_id), la borramos.
     if (setToRemove.db_id != null) {
       try {
         await supa.from('sets').delete().eq('set_id', setToRemove.db_id!);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error al borrar el set en la BD: $e')));
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('Error al borrar el set: $e')));
         }
-        return; // Importante: si falla el borrado, no continuamos.
+        return;
       }
     }
-
-    // 3. Solo si el borrado en la BD fue exitoso (o no fue necesario),
-    //    la quitamos de la lista local y actualizamos la UI.
     if (mounted) {
       setState(() {
         if (setToRemove.isWarmup) {
