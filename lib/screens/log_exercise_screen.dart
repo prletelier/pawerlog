@@ -293,6 +293,33 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16.0),
               children: [
+                Builder(
+                    builder: (context) {
+                      final notes = widget.exerciseData['notes'] as String? ?? '';
+                      // Si la nota no está vacía, mostramos el recuadro
+                      if (notes.isNotEmpty) {
+                        return Container(
+                          padding: const EdgeInsets.all(12.0),
+                          margin: const EdgeInsets.only(bottom: 16.0),
+                          decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8.0),
+                              border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.3))
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(notes)),
+                            ],
+                          ),
+                        );
+                      }
+                      // Si no hay nota, no mostramos nada
+                      return const SizedBox.shrink();
+                    }
+                ),
                 Text('Series de Calentamiento', style: Theme.of(context).textTheme.titleMedium),
                 if (_warmupSets.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Text('No hay series de calentamiento.', style: TextStyle(fontStyle: FontStyle.italic))),
                 ..._warmupSets.map((set) {

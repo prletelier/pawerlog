@@ -52,6 +52,23 @@ class _HomeScreenState extends State<HomeScreen> {
     };
   }
 
+  Future<void> _selectDate() async {
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _cursorDate,
+      // Permitimos navegar un año hacia atrás y hacia adelante
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+
+    // Si el usuario selecciona una fecha, actualizamos el estado
+    if (pickedDate != null && pickedDate != _cursorDate) {
+      setState(() {
+        _cursorDate = pickedDate;
+      });
+    }
+  }
+
   String _buildPrescriptionSummary(Map<String, dynamic> exerciseData) {
     final prescriptions = (exerciseData['prescriptions'] as List? ?? []);
     if (prescriptions.isEmpty) return "Sin series definidas.";
@@ -95,7 +112,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            Text(yyyymmdd(_cursorDate)),
+            TextButton(
+              onPressed: _selectDate, // Llama a la nueva función
+              child: Text(
+                yyyymmdd(_cursorDate),
+                style: TextStyle(
+                  fontSize: 18, // Un poco más grande para que se note que es un botón
+                  color: Theme.of(context).colorScheme.onPrimary, // Color que contraste con el fondo del AppBar
+                ),
+              ),
+            ),
             IconButton(
               icon: const Icon(Icons.chevron_right),
               onPressed: () => setState(

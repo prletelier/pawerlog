@@ -14,14 +14,16 @@ class PlannedExercise {
   String tempoDigits; // Para los dígitos del tempo
   bool isAccessory;
   List<PrescribedSet> prescriptions;
+  String notes;
 
   PlannedExercise({
-    this.movement = 'SQ',
-    List<String>? selectedVariants, // Ahora recibe una lista opcional
+    this.movement = '', // Cambiamos el valor por defecto
+    List<String>? selectedVariants,
     this.tempoDigits = '',
     this.isAccessory = false,
     List<PrescribedSet>? prescriptions,
-  })  : this.selectedVariants = selectedVariants ?? ['Competición'], // Si no se provee, el default es 'Competición'
+    this.notes = '', // <-- AÑADE ESTA LÍNEA
+  })  : this.selectedVariants = selectedVariants ?? ['Competición'],
         this.prescriptions = prescriptions ?? [PrescribedSet()];
 }
 

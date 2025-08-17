@@ -111,6 +111,7 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
                   'variants': ex.selectedVariants, // CORREGIDO: Guarda la lista de variantes
                   'tempo_digits': ex.tempoDigits,
                   'isAccessory': ex.isAccessory,
+                  'notes': ex.notes,
                   'prescriptions': ex.prescriptions
                       .map((p) => {'sets': p.sets, 'reps': p.reps, 'effort': p.effort,})
                       .toList(),
@@ -309,52 +310,74 @@ class _ExerciseEditor extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
+              // --- INICIO DE LA MODIFICACIÓN ---
+              // 1. Ponemos el Switch y el Texto primero
+              Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  const Text('Acc.'),
+                  Switch(
+                    value: exercise.isAccessory,
+                    onChanged: (val) {
+                      exercise.isAccessory = val;
+                      if (val) {
+                        exercise.movement = '';
+                        exercise.selectedVariants = [];
+                      } else {
+                        exercise.movement = '';
+                        exercise.selectedVariants = ['Competición'];
+                      }
+                      onChanged();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(width: 8),
+
+              // 2. Luego, el menú desplegable que ocupa el resto del espacio
               Expanded(
                 child: exercise.isAccessory
                     ? DropdownButtonFormField<String>(
-                  value: accessoryMovements.any((m) => m['name'] == exercise.movement) ? exercise.movement : null,
+                  value: accessoryMovements
+                      .any((m) => m['name'] == exercise.movement)
+                      ? exercise.movement
+                      : null,
                   hint: const Text('Selecciona un accesorio'),
                   decoration: const InputDecoration(labelText: 'Accesorio'),
-                  items: accessoryMovements.map((m) => DropdownMenuItem<String>(
+                  items: accessoryMovements
+                      .map((m) => DropdownMenuItem<String>(
                     value: m['name'] as String,
                     child: Text(m['name'] as String),
-                  )).toList(),
+                  ))
+                      .toList(),
                   onChanged: (val) {
                     exercise.movement = val ?? '';
                     onChanged();
                   },
                 )
                     : DropdownButtonFormField<String>(
-                  value: basicMovements.any((m) => m['name'] == exercise.movement) ? exercise.movement : null,
+                  value: basicMovements
+                      .any((m) => m['name'] == exercise.movement)
+                      ? exercise.movement
+                      : null,
                   hint: const Text('Selecciona un movimiento'),
                   decoration: const InputDecoration(labelText: 'Movimiento'),
-                  items: basicMovements.map((m) => DropdownMenuItem<String>(
+                  items: basicMovements
+                      .map((m) => DropdownMenuItem<String>(
                     value: m['name'] as String,
                     child: Text(m['name'] as String),
-                  )).toList(),
+                  ))
+                      .toList(),
                   onChanged: (val) {
                     exercise.movement = val ?? '';
                     onChanged();
                   },
                 ),
               ),
-              const SizedBox(width: 8),
-              const Text('Acc.'),
-              Switch(
-                value: exercise.isAccessory,
-                onChanged: (val) {
-                  exercise.isAccessory = val;
-                  if (val) {
-                    exercise.movement = '';
-                    exercise.selectedVariants = [];
-                  } else {
-                    exercise.movement = '';
-                    exercise.selectedVariants = ['Competición'];
-                  }
-                  onChanged();
-                },
-              ),
-              IconButton(onPressed: onRemove, icon: const Icon(Icons.delete_outline))
+              // 3. Finalmente, el botón de borrar
+              IconButton(
+                  onPressed: onRemove, icon: const Icon(Icons.delete_outline))
+              // --- FIN DE LA MODIFICACIÓN ---
             ],
           ),
 
@@ -374,8 +397,18 @@ class _ExerciseEditor extends StatelessWidget {
                   selected: isSelected,
                   onSelected: (selected) {
                     if (selected) {
-                      exercise.selectedVariants.add(vName);
+                      // Si se selecciona "Competición", se limpia la lista y se añade solo esa.
+                      if (vName == 'Competición') {
+                        exercise.selectedVariants.clear();
+                        exercise.selectedVariants.add('Competición');
+                      } else {
+                        // Si se selecciona cualquier otra variante, nos aseguramos de quitar "Competición"
+                        // y luego añadimos la nueva variante.
+                        exercise.selectedVariants.remove('Competición');
+                        exercise.selectedVariants.add(vName);
+                      }
                     } else {
+                      // Si se deselecciona, simplemente se quita de la lista.
                       exercise.selectedVariants.remove(vName);
                     }
                     onChanged();
@@ -395,6 +428,18 @@ class _ExerciseEditor extends StatelessWidget {
                 onChanged: (val) => exercise.tempoDigits = val,
               ),
             ),
+          if (exercise.selectedVariants.contains('Cluster'))
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: TextFormField(
+                // Aquí guardaremos el tiempo en la misma variable de tempo por simplicidad,
+                // o podrías crear una nueva variable 'clusterDigits' en el modelo si prefieres.
+                initialValue: exercise.tempoDigits,
+                decoration: const InputDecoration(labelText: 'Tiempo Cluster (en segundos)'),
+                keyboardType: TextInputType.number,
+                onChanged: (val) => exercise.tempoDigits = val,
+              ),
+            ),
 
           const SizedBox(height: 12),
           Text('Prescripciones', style: Theme.of(context).textTheme.labelLarge),
@@ -408,6 +453,18 @@ class _ExerciseEditor extends StatelessWidget {
               },
             );
           }),
+
+          const SizedBox(height: 8),
+          TextFormField(
+            initialValue: exercise.notes,
+            decoration: const InputDecoration(
+              labelText: 'Notas (Opcional)',
+              hintText: 'Ej: Pausa de competición, usar barra...',
+            ),
+            onChanged: (val) => exercise.notes = val,
+          ),
+          const SizedBox(height: 12),
+
           TextButton.icon(
             onPressed: () {
               if (exercise.prescriptions.isNotEmpty) {
