@@ -88,7 +88,8 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
     final startDate = _startDate;
 
     final blockResponse = await supa.from('blocks').insert({
-      'user_id': uid, 'name': _blockNameCtrl.text,
+      'user_id': uid,
+      'name': _blockNameCtrl.text,
       'start_date': yyyymmdd(startDate),
       'end_date': yyyymmdd(startDate.add(Duration(days: _weeks * 7 - 1))),
       'days_per_week': _activeDays.length,
@@ -98,23 +99,33 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
     final List<Map<String, dynamic>> planItemsToInsert = [];
     for (int week = 0; week < _weeks; week++) {
       for (int dayOfWeek in _activeDays.toList()..sort()) {
-        final date = startDate.add(Duration(days: (week * 7) + (dayOfWeek - 1)));
+        final date =
+        startDate.add(Duration(days: (week * 7) + (dayOfWeek - 1)));
         final exercisesForThisDay = _exercisesPerDay[dayOfWeek] ?? [];
         if (exercisesForThisDay.isNotEmpty) {
           planItemsToInsert.add({
-            'user_id': uid, 'block_id': blockId,
+            'user_id': uid,
+            'block_id': blockId,
             'planned_date': yyyymmdd(date),
             'prescription': {
               'exercises': exercisesForThisDay.map((ex) {
+                // Preparamos las prescripciones para ser guardadas
+                final prescriptionsToSave = ex.prescriptions.map((p) {
+                  return {
+                    'sets': p.sets,
+                    'reps': p.reps,
+                    'effort': p.effort,
+                    'isRampUp': p.isRampUp
+                  };
+                }).toList();
+
                 return {
                   'movement': ex.movement,
-                  'variants': ex.selectedVariants, // CORREGIDO: Guarda la lista de variantes
+                  'variants': ex.selectedVariants,
                   'tempo_digits': ex.tempoDigits,
                   'isAccessory': ex.isAccessory,
                   'notes': ex.notes,
-                  'prescriptions': ex.prescriptions
-                      .map((p) => {'sets': p.sets, 'reps': p.reps, 'effort': p.effort,})
-                      .toList(),
+                  'prescriptions': prescriptionsToSave,
                 };
               }).toList(),
             },
@@ -161,21 +172,26 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
           children: [
             TextFormField(
               controller: _blockNameCtrl,
-              decoration: const InputDecoration(labelText: 'Nombre del Bloque'),
-              validator: (val) => (val?.isEmpty ?? true) ? 'Ingresa un nombre' : null,
+              decoration:
+              const InputDecoration(labelText: 'Nombre del Bloque'),
+              validator: (val) =>
+              (val?.isEmpty ?? true) ? 'Ingresa un nombre' : null,
             ),
             const SizedBox(height: 16),
-            Row(children: [
-              const Text('Semanas:'),
-              const SizedBox(width: 16),
-              DropdownButton<int>(
-                value: _weeks,
-                items: List.generate(10, (index) => index + 1)
-                    .map((w) => DropdownMenuItem(value: w, child: Text('$w')))
-                    .toList(),
-                onChanged: (val) => setState(() => _weeks = val ?? 4),
-              ),
-            ],),
+            Row(
+              children: [
+                const Text('Semanas:'),
+                const SizedBox(width: 16),
+                DropdownButton<int>(
+                  value: _weeks,
+                  items: List.generate(10, (index) => index + 1)
+                      .map((w) => DropdownMenuItem(
+                      value: w, child: Text('$w')))
+                      .toList(),
+                  onChanged: (val) => setState(() => _weeks = val ?? 4),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -197,7 +213,8 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
                     setState(() {
                       if (selected) {
                         _activeDays.add(entry.key);
-                        _exercisesPerDay.putIfAbsent(entry.key, () => [PlannedExercise()]);
+                        _exercisesPerDay.putIfAbsent(
+                            entry.key, () => [PlannedExercise()]);
                       } else {
                         _activeDays.remove(entry.key);
                       }
@@ -238,9 +255,12 @@ class _DayEditor extends StatelessWidget {
   final VoidCallback onChanged;
 
   const _DayEditor({
-    super.key, required this.dayTitle,
-    required this.exercises, required this.basicMovements,
-    required this.accessoryMovements, required this.variants,
+    super.key,
+    required this.dayTitle,
+    required this.exercises,
+    required this.basicMovements,
+    required this.accessoryMovements,
+    required this.variants,
     required this.onChanged,
   });
 
@@ -284,7 +304,6 @@ class _DayEditor extends StatelessWidget {
   }
 }
 
-// CORREGIDO: Widget completo con la nueva lógica de variantes
 class _ExerciseEditor extends StatelessWidget {
   final PlannedExercise exercise;
   final List<Map<String, dynamic>> basicMovements;
@@ -294,11 +313,78 @@ class _ExerciseEditor extends StatelessWidget {
   final VoidCallback onChanged;
 
   const _ExerciseEditor({
-    super.key, required this.exercise,
-    required this.basicMovements, required this.accessoryMovements,
-    required this.variants, required this.onRemove,
+    super.key,
+    required this.exercise,
+    required this.basicMovements,
+    required this.accessoryMovements,
+    required this.variants,
+    required this.onRemove,
     required this.onChanged,
   });
+
+  Future<void> _showAddPrescriptionDialog(BuildContext context) async {
+    final formKey = GlobalKey<FormState>();
+    final setsCtrl = TextEditingController();
+    final repsCtrl = TextEditingController();
+    final effortCtrl = TextEditingController();
+    final isRampUpNotifier = ValueNotifier<bool>(false);
+
+    final PrescribedSet? newSet = await showDialog<PrescribedSet>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Añadir Prescripción'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(controller: setsCtrl, decoration: const InputDecoration(labelText: 'Series', hintText: 'ej. 1, 3, 4')),
+                TextFormField(controller: repsCtrl, decoration: const InputDecoration(labelText: 'Reps', hintText: 'ej. 5, 8-10')),
+                TextFormField(controller: effortCtrl, decoration: const InputDecoration(labelText: 'Esfuerzo', hintText: 'ej. @8, RIR2, -15%')),
+                ValueListenableBuilder<bool>(
+                  valueListenable: isRampUpNotifier,
+                  builder: (context, isRampUp, child) {
+                    return CheckboxListTile(
+                      title: const Text('Ramp Up'),
+                      value: isRampUp,
+                      onChanged: (val) {
+                        isRampUpNotifier.value = val ?? false;
+                      },
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() ?? false) {
+                  final set = parsePrescriptionLine(
+                    setsStr: setsCtrl.text,
+                    repsStr: repsCtrl.text,
+                    effortStr: effortCtrl.text,
+                    isRampUp: isRampUpNotifier.value,
+                  );
+                  Navigator.of(context).pop(set);
+                }
+              },
+              child: const Text('Añadir'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (newSet != null) {
+      exercise.prescriptions.add(newSet);
+      onChanged();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -310,8 +396,6 @@ class _ExerciseEditor extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // --- INICIO DE LA MODIFICACIÓN ---
-              // 1. Ponemos el Switch y el Texto primero
               Column(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -333,51 +417,30 @@ class _ExerciseEditor extends StatelessWidget {
                 ],
               ),
               const SizedBox(width: 8),
-
-              // 2. Luego, el menú desplegable que ocupa el resto del espacio
               Expanded(
                 child: exercise.isAccessory
                     ? DropdownButtonFormField<String>(
-                  value: accessoryMovements
-                      .any((m) => m['name'] == exercise.movement)
-                      ? exercise.movement
-                      : null,
+                  value: accessoryMovements.any((m) => m['name'] == exercise.movement) ? exercise.movement : null,
                   hint: const Text('Selecciona un accesorio'),
                   decoration: const InputDecoration(labelText: 'Accesorio'),
-                  items: accessoryMovements
-                      .map((m) => DropdownMenuItem<String>(
-                    value: m['name'] as String,
-                    child: Text(m['name'] as String),
-                  ))
-                      .toList(),
+                  items: accessoryMovements.map((m) => DropdownMenuItem<String>(value: m['name'] as String, child: Text(m['name'] as String))).toList(),
                   onChanged: (val) {
                     exercise.movement = val ?? '';
                     onChanged();
                   },
                 )
                     : DropdownButtonFormField<String>(
-                  value: basicMovements
-                      .any((m) => m['name'] == exercise.movement)
-                      ? exercise.movement
-                      : null,
+                  value: basicMovements.any((m) => m['name'] == exercise.movement) ? exercise.movement : null,
                   hint: const Text('Selecciona un movimiento'),
                   decoration: const InputDecoration(labelText: 'Movimiento'),
-                  items: basicMovements
-                      .map((m) => DropdownMenuItem<String>(
-                    value: m['name'] as String,
-                    child: Text(m['name'] as String),
-                  ))
-                      .toList(),
+                  items: basicMovements.map((m) => DropdownMenuItem<String>(value: m['name'] as String, child: Text(m['name'] as String))).toList(),
                   onChanged: (val) {
                     exercise.movement = val ?? '';
                     onChanged();
                   },
                 ),
               ),
-              // 3. Finalmente, el botón de borrar
-              IconButton(
-                  onPressed: onRemove, icon: const Icon(Icons.delete_outline))
-              // --- FIN DE LA MODIFICACIÓN ---
+              IconButton(onPressed: onRemove, icon: const Icon(Icons.delete_outline))
             ],
           ),
 
@@ -397,18 +460,14 @@ class _ExerciseEditor extends StatelessWidget {
                   selected: isSelected,
                   onSelected: (selected) {
                     if (selected) {
-                      // Si se selecciona "Competición", se limpia la lista y se añade solo esa.
                       if (vName == 'Competición') {
                         exercise.selectedVariants.clear();
                         exercise.selectedVariants.add('Competición');
                       } else {
-                        // Si se selecciona cualquier otra variante, nos aseguramos de quitar "Competición"
-                        // y luego añadimos la nueva variante.
                         exercise.selectedVariants.remove('Competición');
                         exercise.selectedVariants.add(vName);
                       }
                     } else {
-                      // Si se deselecciona, simplemente se quita de la lista.
                       exercise.selectedVariants.remove(vName);
                     }
                     onChanged();
@@ -428,12 +487,11 @@ class _ExerciseEditor extends StatelessWidget {
                 onChanged: (val) => exercise.tempoDigits = val,
               ),
             ),
+
           if (exercise.selectedVariants.contains('Cluster'))
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: TextFormField(
-                // Aquí guardaremos el tiempo en la misma variable de tempo por simplicidad,
-                // o podrías crear una nueva variable 'clusterDigits' en el modelo si prefieres.
                 initialValue: exercise.tempoDigits,
                 decoration: const InputDecoration(labelText: 'Tiempo Cluster (en segundos)'),
                 keyboardType: TextInputType.number,
@@ -443,97 +501,47 @@ class _ExerciseEditor extends StatelessWidget {
 
           const SizedBox(height: 12),
           Text('Prescripciones', style: Theme.of(context).textTheme.labelLarge),
-          ...exercise.prescriptions.asMap().entries.map((entry) {
-            return _PrescriptionEditor(
-              key: UniqueKey(),
-              prescription: entry.value,
-              onRemove: () {
-                exercise.prescriptions.removeAt(entry.key);
-                onChanged();
-              },
-            );
-          }),
+
+          // --- SECCIÓN DE PRESCRIPCIONES CORREGIDA ---
+          if (exercise.prescriptions.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: Text('Añade una línea de prescripción.', style: TextStyle(fontStyle: FontStyle.italic)),
+            )
+          else
+            ...exercise.prescriptions.asMap().entries.map((entry) {
+              final p = entry.value;
+              final title = p.isRampUp
+                  ? '${p.sets} x ${p.reps} ${p.effort} (Ramp Up)'
+                  : '${p.sets} x ${p.reps} ${p.effort}';
+              return ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(title),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  onPressed: () {
+                    exercise.prescriptions.removeAt(entry.key);
+                    onChanged();
+                  },
+                ),
+              );
+            }),
+
+          TextButton.icon(
+            onPressed: () => _showAddPrescriptionDialog(context),
+            icon: const Icon(Icons.add_circle_outline),
+            label: const Text('Añadir Prescripción'),
+          ),
 
           const SizedBox(height: 8),
           TextFormField(
             initialValue: exercise.notes,
-            decoration: const InputDecoration(
-              labelText: 'Notas (Opcional)',
-              hintText: 'Ej: Pausa de competición, usar barra...',
-            ),
+            decoration: const InputDecoration(labelText: 'Notas (Opcional)'),
             onChanged: (val) => exercise.notes = val,
           ),
-          const SizedBox(height: 12),
-
-          TextButton.icon(
-            onPressed: () {
-              if (exercise.prescriptions.isNotEmpty) {
-                final lastPrescription = exercise.prescriptions.last;
-                exercise.prescriptions.add(PrescribedSet(
-                  sets: lastPrescription.sets,
-                  reps: lastPrescription.reps,
-                  effort: lastPrescription.effort,
-                ));
-              } else {
-                exercise.prescriptions.add(PrescribedSet());
-              }
-              onChanged();
-            },
-            icon: const Icon(Icons.add_circle_outline),
-            label: const Text('Añadir línea de prescripción'),
-          )
         ],
       ),
-    );
-  }
-}
-
-class _PrescriptionEditor extends StatelessWidget {
-  final PrescribedSet prescription;
-  final VoidCallback onRemove;
-
-  const _PrescriptionEditor(
-      {super.key, required this.prescription, required this.onRemove});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          flex: 2,
-          child: TextFormField(
-            initialValue: '${prescription.sets}',
-            decoration: const InputDecoration(labelText: 'Sets'),
-            keyboardType: TextInputType.number,
-            onChanged: (val) => prescription.sets = int.tryParse(val) ?? 1,
-          ),
-        ),
-        const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 4), child: Text('x')),
-        Expanded(
-          flex: 3,
-          child: TextFormField(
-            initialValue: prescription.reps,
-            decoration:
-            const InputDecoration(labelText: 'Reps', hintText: '5 o 10-12'),
-            onChanged: (val) => prescription.reps = val,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          flex: 3,
-          child: TextFormField(
-            initialValue: prescription.effort,
-            decoration: const InputDecoration(
-                labelText: 'Esfuerzo', hintText: '@8, RIR2'),
-            onChanged: (val) => prescription.effort = val,
-          ),
-        ),
-        IconButton(
-            onPressed: onRemove,
-            icon: const Icon(Icons.remove_circle_outline, size: 20))
-      ],
     );
   }
 }

@@ -113,13 +113,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             TextButton(
-              onPressed: _selectDate, // Llama a la nueva función
+              onPressed: _selectDate,
+              // Le damos estilo al botón para que su texto sea del color correcto
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.onSurface,
+              ),
               child: Text(
                 yyyymmdd(_cursorDate),
-                style: TextStyle(
-                  fontSize: 18, // Un poco más grande para que se note que es un botón
-                  color: Theme.of(context).colorScheme.onPrimary, // Color que contraste con el fondo del AppBar
-                ),
+                // El estilo del texto ya no necesita definir el color
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             IconButton(

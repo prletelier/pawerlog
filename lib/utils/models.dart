@@ -2,10 +2,17 @@
 import 'package:flutter/material.dart';
 
 class PrescribedSet {
-  int sets;
-  String reps; // "5" o "10-12"
-  String effort; // "@8", "RIR2", "-15%"
-  PrescribedSet({this.sets = 1, this.reps = "5", this.effort = "@8"});
+  String sets;
+  String reps;
+  String effort;
+  bool isRampUp; // <-- NUEVO: El interruptor para Ramp Up
+
+  PrescribedSet({
+    this.sets = "1",
+    this.reps = "5",
+    this.effort = "@8",
+    this.isRampUp = false, // <-- Por defecto, no es una rampa
+  });
 }
 
 class PlannedExercise {

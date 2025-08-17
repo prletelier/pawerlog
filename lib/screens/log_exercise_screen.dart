@@ -1,9 +1,9 @@
 // lib/screens/log_exercise_screen.dart
+import '../utils/helpers.dart';
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../utils/helpers.dart';
 import '../utils/models.dart';
 import '../widgets/series_row_widget.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -110,16 +110,35 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
 
   void _initializeSetsFromPlan() {
     _warmupSets = [LoggedSet(seriesIndex: 1, isWarmup: true)];
+    _workSets = [];
     final prescriptions = widget.exerciseData['prescriptions'] as List? ?? [];
     int seriesCounter = 1;
+
     for (var p in prescriptions) {
       final setData = p as Map<String, dynamic>;
-      final setCount = setData['sets'] as int? ?? 1;
-      for (int i = 0; i < setCount; i++) {
-        final set = LoggedSet(seriesIndex: seriesCounter++, isWarmup: false);
-        set.repsCtrl.text = setData['reps'] ?? '';
-        set.rpeCtrl.text = setData['effort'] ?? '';
-        _workSets.add(set);
+      final isRampUp = setData['isRampUp'] as bool? ?? false;
+      final setCount = int.tryParse(setData['sets']?.toString() ?? '1') ?? 1;
+      final reps = setData['reps']?.toString() ?? '';
+      String currentEffort = setData['effort']?.toString() ?? '';
+
+      // Si es una rampa, generamos las series progresivas
+      if (isRampUp && setCount > 1) {
+        for (int i = 0; i < setCount; i++) {
+          final set = LoggedSet(seriesIndex: seriesCounter++, isWarmup: false);
+          set.repsCtrl.text = reps;
+          set.rpeCtrl.text = currentEffort;
+          _workSets.add(set);
+          currentEffort = incrementEffort(currentEffort);
+        }
+      }
+      // Si no, añadimos el bloque tal cual
+      else {
+        for (int i = 0; i < setCount; i++) {
+          final set = LoggedSet(seriesIndex: seriesCounter++, isWarmup: false);
+          set.repsCtrl.text = reps;
+          set.rpeCtrl.text = currentEffort;
+          _workSets.add(set);
+        }
       }
     }
   }

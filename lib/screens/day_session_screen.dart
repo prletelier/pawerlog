@@ -25,8 +25,6 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
   final supa = Supabase.instance.client;
   late final List<dynamic> _plannedExercises;
   final Set<String> _completedExercises = {};
-
-  // NUEVO: Lista para guardar los sets reales que vienen de la BD
   List<Map<String, dynamic>> _loggedSets = [];
   bool _isLoading = true;
 
@@ -42,14 +40,29 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
   }
 
   Future<void> _setupInitialState() async {
-    // Lógica del timer corregida para empezar desde 0 si es una nueva sesión
     final sessionStatus = widget.initialSessionData?['status'];
     if (sessionStatus == 'activa' || sessionStatus == 'pausada') {
       final startTimeStr = widget.initialSessionData?['started_at'] as String?;
       if (startTimeStr != null) {
         try {
           final startTime = DateTime.parse(startTimeStr).toLocal();
-          _sessionDuration = DateTime.now().difference(startTime);
+
+          // --- INICIO DE LA CORRECCIÓN ---
+          // Lógica robusta para leer la duración, aceptando int o String
+          final dynamic savedDuration = widget.initialSessionData?['duration_min'];
+          int? savedDurationMins;
+          if (savedDuration is int) {
+            savedDurationMins = savedDuration;
+          } else if (savedDuration is String) {
+            savedDurationMins = int.tryParse(savedDuration);
+          }
+          // --- FIN DE LA CORRECCIÓN ---
+
+          if (savedDurationMins != null && savedDurationMins > 0) {
+            _sessionDuration = Duration(minutes: savedDurationMins);
+          } else {
+            _sessionDuration = DateTime.now().difference(startTime);
+          }
         } catch(e) {
           _sessionDuration = Duration.zero;
         }
@@ -59,7 +72,6 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     await _loadSessionData();
   }
 
-  // NUEVO: Carga tanto los sets completados como el estado de finalización
   Future<void> _loadSessionData() async {
     if(!mounted) return;
     setState(() => _isLoading = true);
@@ -68,7 +80,6 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
       final uid = supa.auth.currentUser!.id;
       final day = yyyymmdd(widget.date);
 
-      // Pedimos todos los sets guardados para este día
       final setsResponse = await supa
           .from('sets')
           .select()
@@ -78,8 +89,6 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
           .order('set_index', ascending: true);
 
       _loggedSets = List<Map<String, dynamic>>.from(setsResponse);
-
-      // Verificamos qué ejercicios están completos
       await _checkCompletedExercises();
 
     } catch (e) {
@@ -98,7 +107,8 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
 
       int plannedWorkSetsCount = 0;
       for (var p in prescriptions) {
-        plannedWorkSetsCount += (p['sets'] as int? ?? 1);
+        // CORREGIDO: Asegura que 'sets' se trate como String antes de parsear
+        plannedWorkSetsCount += int.tryParse(p['sets']?.toString() ?? '1') ?? 1;
       }
       if (plannedWorkSetsCount == 0) continue;
 
@@ -119,7 +129,6 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     return title;
   }
 
-  // MODIFICADO: Ahora construye el resumen desde los datos REALES guardados
   String _buildLoggedSummary(String exerciseTitle) {
     final setsForExercise = _loggedSets.where((s) => s['exercise_name'] == exerciseTitle && s['is_warmup'] == false && s['is_completed'] == true);
     if (setsForExercise.isEmpty) return "Sin series registradas.";
@@ -182,7 +191,13 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Duración: $_formattedDuration'),
-        // El botón de actions se elimina de aquí
+        actions: [
+          if (allExercisesCompleted)
+            TextButton(
+              onPressed: _endSession,
+              child: const Text('FINALIZAR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            )
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -190,7 +205,6 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
         itemCount: _plannedExercises.length,
         separatorBuilder: (_, __) => const Divider(height: 1.0),
         itemBuilder: (context, index) {
-          // ... El itemBuilder se mantiene exactamente igual que antes
           final exerciseData = _plannedExercises[index] as Map<String, dynamic>;
           final title = _buildExerciseTitle(exerciseData);
           final isCompleted = _completedExercises.contains(title);
@@ -218,9 +232,6 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
           );
         },
       ),
-
-      // --- INICIO DE LA MODIFICACIÓN ---
-      // Movemos el botón aquí abajo
       bottomNavigationBar: allExercisesCompleted
           ? Padding(
         padding: const EdgeInsets.all(16.0),
@@ -234,8 +245,7 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
           ),
         ),
       )
-          : null, // Si no están todos completos, no se muestra nada
-      // --- FIN DE LA MODIFICACIÓN ---
+          : null,
     );
   }
 }
