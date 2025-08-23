@@ -30,8 +30,8 @@ class PlannedExercise {
     this.isAccessory = false,
     List<PrescribedSet>? prescriptions,
     this.notes = '', // <-- AÑADE ESTA LÍNEA
-  })  : this.selectedVariants = selectedVariants ?? ['Competición'],
-        this.prescriptions = prescriptions ?? [PrescribedSet()];
+  }) : this.selectedVariants = selectedVariants ?? ['Competición'],
+        this.prescriptions = prescriptions ?? []; // <-- Ahora crea una lista vacía
 }
 
 class LoggedSet {

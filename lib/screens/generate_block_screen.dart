@@ -448,33 +448,70 @@ class _ExerciseEditor extends StatelessWidget {
             const SizedBox(height: 16),
             Text('Variantes', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8.0,
-              runSpacing: 4.0,
-              children: variants.map((variant) {
-                final vName = variant['name'] as String;
-                final isSelected = exercise.selectedVariants.contains(vName);
-                return FilterChip(
-                  label: Text(vName),
-                  selectedColor: Theme.of(context).colorScheme.primary,
-                  selected: isSelected,
+            Row(
+              children: [
+                // Botón para "Competición"
+                FilterChip(
+                  label: const Text('Competición'),
+                  selected: exercise.selectedVariants.contains('Competición'),
                   onSelected: (selected) {
                     if (selected) {
-                      if (vName == 'Competición') {
-                        exercise.selectedVariants.clear();
-                        exercise.selectedVariants.add('Competición');
-                      } else {
-                        exercise.selectedVariants.remove('Competición');
-                        exercise.selectedVariants.add(vName);
-                      }
+                      exercise.selectedVariants.clear();
+                      exercise.selectedVariants.add('Competición');
                     } else {
-                      exercise.selectedVariants.remove(vName);
+                      // Opcional: no permitir deseleccionar competición, solo cambiar a otra variante
+                      exercise.selectedVariants.remove('Competición');
                     }
                     onChanged();
                   },
-                );
-              }).toList(),
+                ),
+                const SizedBox(width: 8),
+                // Botón que despliega el resto de las variantes
+                PopupMenuButton<String>(
+                  onSelected: (String variantName) {
+                    // Lógica para añadir/quitar la variante seleccionada
+                    if (exercise.selectedVariants.contains(variantName)) {
+                      exercise.selectedVariants.remove(variantName);
+                    } else {
+                      // Al seleccionar una variante, se quita "Competición"
+                      exercise.selectedVariants.remove('Competición');
+                      exercise.selectedVariants.add(variantName);
+                    }
+                    onChanged();
+                  },
+                  itemBuilder: (BuildContext context) {
+                    // Filtramos para no mostrar "Competición" en el menú
+                    return variants
+                        .where((v) => v['name'] != 'Competición')
+                        .map((variant) {
+                      final vName = variant['name'] as String;
+                      return CheckedPopupMenuItem<String>(
+                        value: vName,
+                        checked: exercise.selectedVariants.contains(vName),
+                        child: Text(vName),
+                      );
+                    }).toList();
+                  },
+                  child: const Chip(
+                    label: Text('Variantes'),
+                    avatar: Icon(Icons.arrow_drop_down, size: 18),
+                  ),
+                ),
+              ],
             ),
+            // Mostramos las variantes seleccionadas (que no son "Competición")
+            if (exercise.selectedVariants.any((v) => v != 'Competición'))
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Wrap(
+                  spacing: 6.0,
+                  runSpacing: 4.0,
+                  children: exercise.selectedVariants
+                      .where((v) => v != 'Competición')
+                      .map((variantName) => Chip(label: Text(variantName)))
+                      .toList(),
+                ),
+              ),
           ],
 
           if (exercise.selectedVariants.contains('Tempo'))
