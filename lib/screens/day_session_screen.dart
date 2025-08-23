@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/helpers.dart';
 import 'log_exercise_screen.dart';
 
+/// Muestra la lista de ejercicios planificados para un día específico.
+/// Permite iniciar una sesión de entrenamiento y navegar al registro de cada ejercicio.
 class DaySessionScreen extends StatefulWidget {
   final DateTime date;
   final Map<String, dynamic> plan;
@@ -21,6 +23,9 @@ class DaySessionScreen extends StatefulWidget {
   State<DaySessionScreen> createState() => _DaySessionScreenState();
 }
 
+/// El estado para [DaySessionScreen].
+/// Maneja el cronómetro de la sesión, carga los datos de los sets completados
+/// y actualiza la UI para reflejar el progreso del entrenamiento.
 class _DaySessionScreenState extends State<DaySessionScreen> {
   final supa = Supabase.instance.client;
   late final List<dynamic> _plannedExercises;
@@ -39,6 +44,8 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     _setupInitialState();
   }
 
+  /// Configura el estado inicial de la pantalla, especialmente el cronómetro,
+  /// basándose en si la sesión ya estaba activa.
   Future<void> _setupInitialState() async {
     final sessionStatus = widget.initialSessionData?['status'];
     if (sessionStatus == 'activa' || sessionStatus == 'pausada') {
@@ -47,8 +54,7 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
         try {
           final startTime = DateTime.parse(startTimeStr).toLocal();
 
-          // --- INICIO DE LA CORRECCIÓN ---
-          // Lógica robusta para leer la duración, aceptando int o String
+          // Manejo robusto de 'duration_min' que puede ser int o String
           final dynamic savedDuration = widget.initialSessionData?['duration_min'];
           int? savedDurationMins;
           if (savedDuration is int) {
@@ -56,7 +62,6 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
           } else if (savedDuration is String) {
             savedDurationMins = int.tryParse(savedDuration);
           }
-          // --- FIN DE LA CORRECCIÓN ---
 
           if (savedDurationMins != null && savedDurationMins > 0) {
             _sessionDuration = Duration(minutes: savedDurationMins);
@@ -72,6 +77,8 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     await _loadSessionData();
   }
 
+  /// Carga desde Supabase todos los sets registrados para el día actual y
+  /// actualiza el estado de los ejercicios completados.
   Future<void> _loadSessionData() async {
     if(!mounted) return;
     setState(() => _isLoading = true);
@@ -98,6 +105,8 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     }
   }
 
+  /// Compara los sets planeados con los registrados en la BD para determinar
+  /// qué ejercicios están completamente finalizados.
   Future<void> _checkCompletedExercises() async {
     _completedExercises.clear();
     for (final exerciseData in _plannedExercises) {
@@ -120,6 +129,7 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     }
   }
 
+  /// Construye el título completo de un ejercicio, combinando el movimiento y sus variantes.
   String _buildExerciseTitle(Map<String, dynamic> exerciseData) {
     String title = exerciseData['movement'] ?? 'Ejercicio sin nombre';
     final variants = exerciseData['variants'] as List? ?? [];
@@ -129,6 +139,8 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     return title;
   }
 
+  /// Crea un resumen del trabajo REALIZADO para un ejercicio completado.
+  /// Ej: "100.0 kg x 5 @8 | 102.5 kg x 5 @9"
   String _buildLoggedSummary(String exerciseTitle) {
     final setsForExercise = _loggedSets.where((s) => s['exercise_name'] == exerciseTitle && s['is_warmup'] == false && s['is_completed'] == true);
     if (setsForExercise.isEmpty) return "Sin series registradas.";
@@ -141,6 +153,7 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     }).join(' | ');
   }
 
+  /// Inicia o reanuda el cronómetro principal de la sesión.
   void _startSessionTimer() {
     _sessionTimer?.cancel();
     _sessionTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -152,6 +165,7 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     });
   }
 
+  /// Finaliza la sesión, detiene el cronómetro y guarda el estado final en Supabase.
   Future<void> _endSession() async {
     _sessionTimer?.cancel();
     try {
@@ -176,6 +190,7 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     super.dispose();
   }
 
+  /// Formatea la duración de la sesión en un string legible (HH:MM:SS).
   String get _formattedDuration {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final hours = twoDigits(_sessionDuration.inHours);
@@ -184,6 +199,10 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     return "$hours:$minutes:$seconds";
   }
 
+  /// El build es principalmente UI, mostrando la lista de ejercicios
+  /// y el estado del cronómetro. Permite navegar a la pantalla de registro
+  /// de cada ejercicio y finalizar la sesión cuando todos los ejercicios
+  /// están completos.
   @override
   Widget build(BuildContext context) {
     final allExercisesCompleted = _plannedExercises.isNotEmpty && _completedExercises.length == _plannedExercises.length;

@@ -9,6 +9,10 @@ import '../widgets/series_row_widget.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:vibration/vibration.dart';
 
+/// Pantalla para registrar los sets de un ejercicio específico en una fecha dada.
+/// Permite al usuario introducir peso, reps y RPE para cada serie, tanto de
+/// calentamiento como efectivas.
+/// Permite marcar sets como completados, agregar nuevos sets, y manejar tiempos de descanso.
 class LogExerciseScreen extends StatefulWidget {
   final DateTime date;
   final Map<String, dynamic> exerciseData;
@@ -23,6 +27,9 @@ class LogExerciseScreen extends StatefulWidget {
   State<LogExerciseScreen> createState() => _LogExerciseScreenState();
 }
 
+/// El estado para [LogExerciseScreen].
+/// Maneja la carga y guardado de sets, el temporizador de descanso,
+/// y la actualización de la UI.
 class _LogExerciseScreenState extends State<LogExerciseScreen> {
   final supa = Supabase.instance.client;
   final _audioPlayer = AudioPlayer();
@@ -47,6 +54,10 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     _loadAndBuildState();
   }
 
+  /// Construye el título del ejercicio a partir de los datos proporcionados.
+  /// Incluye el nombre del movimiento y las variantes seleccionadas.
+  /// Si no hay nombre, usa un valor por defecto.
+  /// Ejemplo: "Sentadilla - Competición Peso Libre"
   String _buildExerciseTitle(Map<String, dynamic> exerciseData) {
     String title = exerciseData['movement'] ?? 'Ejercicio sin nombre';
     final variants = exerciseData['variants'] as List? ?? [];
@@ -56,6 +67,9 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     return title;
   }
 
+  /// Carga los sets registrados desde la base de datos para el ejercicio y fecha dados.
+  /// Si no hay sets registrados, inicializa los sets desde el plan del ejercicio.
+  /// Actualiza el estado de la UI en consecuencia.
   Future<void> _loadAndBuildState() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
@@ -79,6 +93,7 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
       _workSets.clear();
 
       if (response.isNotEmpty) {
+        // Si hay datos en la BD, se construye la pantalla a partir de ellos.
         final loggedSetsData = response as List<dynamic>;
         for (var data in loggedSetsData) {
           final set = LoggedSet(
@@ -96,6 +111,7 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
           }
         }
       } else {
+        // Si no hay datos, se construye la pantalla a partir del plan.
         _initializeSetsFromPlan();
       }
     } catch (e) {
@@ -108,6 +124,9 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     }
   }
 
+  /// Inicializa las listas de sets de calentamiento y efectivos
+  /// a partir de las prescripciones del plan de ejercicio.
+  /// Maneja rampas de esfuerzo incrementando el RPE o disminuyendo RIR.
   void _initializeSetsFromPlan() {
     _warmupSets = [LoggedSet(seriesIndex: 1, isWarmup: true)];
     _workSets = [];
@@ -121,7 +140,7 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
       final reps = setData['reps']?.toString() ?? '';
       String currentEffort = setData['effort']?.toString() ?? '';
 
-      // Si es una rampa, generamos las series progresivas
+      // Si es una rampa, genera series individuales con esfuerzo incremental.
       if (isRampUp && setCount > 1) {
         for (int i = 0; i < setCount; i++) {
           final set = LoggedSet(seriesIndex: seriesCounter++, isWarmup: false);
@@ -143,6 +162,8 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     }
   }
 
+  /// Maneja el evento de marcar o desmarcar el check de una serie.
+  /// Actualiza el estado 'is_completed' en la base de datos.
   Future<void> _handleSetCompletion(LoggedSet set) async {
     try {
       final weight = double.tryParse(set.weightCtrl.text);
@@ -198,6 +219,8 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     }
   }
 
+  /// Maneja el evento de eliminar una serie de la lista, tanto de la UI
+  /// como de la base de datos (si ya estaba guardada).
   Future<void> _handleSetRemoval(LoggedSet setToRemove) async {
     _restTimer?.cancel();
     if(mounted) setState(() => _restSecondsRemaining = 0);
@@ -225,6 +248,7 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     }
   }
 
+  /// Inicia el temporizador de descanso con la duración apropiada.
   void _startRestTimer({required bool isWarmup}) {
     _restTimer?.cancel();
     final type = isWarmup ? 'warmup' : (widget.exerciseData['isAccessory'] ?? false) ? 'accessory' : 'basic';
@@ -246,6 +270,7 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
 
   @override
   void dispose() {
+    // Libera todos los recursos para evitar fugas de memoria.
     _restTimer?.cancel();
     _audioPlayer.dispose();
     for (var s in _warmupSets) {
@@ -257,6 +282,7 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     super.dispose();
   }
 
+  /// Formatea los segundos restantes en un string MM:SS.
   String get _timerDisplay {
     if (_restSecondsRemaining <= 0) return '';
     final minutes = (_restSecondsRemaining ~/ 60).toString().padLeft(2, '0');
@@ -264,10 +290,13 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     return '$minutes:$seconds';
   }
 
+  /// Se ejecuta al presionar el botón "Ejercicio Completado".
+  /// Vuelve a la pantalla anterior devolviendo 'true' para indicar que hubo cambios.
   void _completeExercise() {
     Navigator.of(context).pop(true);
   }
 
+  /// Añade una nueva serie de calentamiento a la lista.
   void _addWarmupSet() {
     setState(() {
       final nextIndex = _warmupSets.isEmpty ? 1 : (_warmupSets.map((s) => s.seriesIndex).reduce(max)) + 1;
@@ -275,6 +304,7 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     });
   }
 
+  /// Añade una nueva serie efectiva a la lista.
   void _addWorkSet() {
     setState(() {
       final nextIndex = _workSets.isEmpty ? 1 : (_workSets.map((s) => s.seriesIndex).reduce(max)) + 1;
@@ -282,6 +312,8 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     });
   }
 
+  /// Incrementa el esfuerzo (RPE o RIR) de una serie de acuerdo a las reglas definidas.
+  /// Si es RPE, se incrementa el valor; si es RIR, se decrementa.
   @override
   Widget build(BuildContext context) {
     final bool areAllSetsCompleted =

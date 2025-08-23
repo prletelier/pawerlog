@@ -2,6 +2,9 @@
 import 'package:flutter/material.dart';
 import '../utils/models.dart';
 
+/// Un widget que representa una fila para registrar una serie de un ejercicio.
+/// Incluye campos para peso, repeticiones, RPE/RIR, un checkbox de completado,
+/// y un botón opcional para eliminar la serie.
 class SeriesRowWidget extends StatelessWidget {
   final LoggedSet loggedSet;
   final String seriesLabel;
@@ -20,6 +23,8 @@ class SeriesRowWidget extends StatelessWidget {
     this.onRemove,
   });
 
+  /// Construye el widget de la fila de serie.
+  /// Muestra los campos de entrada y maneja la lógica de UI.
   @override
   Widget build(BuildContext context) {
     return Padding(

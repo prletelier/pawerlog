@@ -2,13 +2,16 @@
 import 'package:intl/intl.dart';
 import 'models.dart';
 
+/// Formatea un objeto [DateTime] a un string con formato 'yyyy-MM-dd'.
+/// Útil para consistencia al interactuar con la base de datos.
 String yyyymmdd(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
 
 /// Parsea un string de RPE/RIR (ej. "@8", "RIR 2", "8.5") y devuelve solo el número.
+/// Devuelve `null` si no se encuentra ningún número en el string.
 double? parseRpe(String rpeString) {
   if (rpeString.isEmpty) return null;
 
-  // Busca cualquier número (incluyendo decimales) en el string.
+  // Usa una expresión regular para buscar cualquier número, incluyendo decimales.
   final RegExp numberRegex = RegExp(r'(\d+(\.\d+)?)');
   final Match? match = numberRegex.firstMatch(rpeString);
 
@@ -21,6 +24,9 @@ double? parseRpe(String rpeString) {
   return null;
 }
 
+/// Combina una variante con sus dígitos de tempo si es necesario.
+/// Por ejemplo, si [selected] es 'Tempo' y [tempoDigits] es '420',
+/// devuelve 'Tempo 420'.
 String effectiveVariant(String selected, String? tempoDigits) {
   if (selected.toLowerCase() == 'tempo' &&
       tempoDigits != null &&
@@ -30,6 +36,8 @@ String effectiveVariant(String selected, String? tempoDigits) {
   return selected;
 }
 
+/// Fórmula interna para calcular el porcentaje de 1RM basado en reps y RPE.
+/// No se debe llamar directamente.
 double _percentage(int reps, double rpe) {
   if (rpe > 10) rpe = 10.0;
   if (reps < 1 || rpe < 4) return 0.0;
@@ -45,18 +53,22 @@ double _percentage(int reps, double rpe) {
   return m * x + b;
 }
 
+/// Calcula el 1RM Estimado (e1RM) a partir de un peso, repeticiones y RPE.
+/// Devuelve `null` si el cálculo no es posible.
 double? calcE1RM(double weightKg, int reps, double rpe) {
   final p = _percentage(reps, rpe);
   if (p <= 0) return null;
   return weightKg / p * 100.0;
 }
 
-// NUEVA FUNCIÓN para un formato de fecha más completo
+/// Formatea un objeto [DateTime] a un string largo y legible en español.
+/// Ejemplo de formato: "lunes, 11 de agosto de 2025".
 String formatFullDate(DateTime d) {
   // Formato: Lunes, 11 de agosto de 2025
   return DateFormat('EEEE, d \'de\' MMMM \'de\' y', 'es').format(d);
 }
 
+/// Crea un objeto [PrescribedSet] a partir de los datos introducidos por el usuario.
 PrescribedSet parsePrescriptionLine({
   required String setsStr,
   required String repsStr,
@@ -71,6 +83,9 @@ PrescribedSet parsePrescriptionLine({
   );
 }
 
+/// Incrementa un string de esfuerzo al siguiente nivel de intensidad.
+/// Si el esfuerzo es RPE (ej. "@7"), devuelve "@8".
+/// Si el esfuerzo es RIR (ej. "RIR 2"), devuelve "RIR 1".
 String incrementEffort(String effort) {
   final number = parseRpe(effort); // Usa la función que ya teníamos
   if (number == null) return effort;

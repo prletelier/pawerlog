@@ -6,6 +6,8 @@ import '../utils/models.dart';
 import 'home_screen.dart';
 import 'dart:math';
 
+/// Una pantalla Stateful que permite al usuario configurar y generar un nuevo
+/// bloque de entrenamiento completo.
 class GenerateBlockScreen extends StatefulWidget {
   const GenerateBlockScreen({super.key});
 
@@ -13,32 +15,41 @@ class GenerateBlockScreen extends StatefulWidget {
   State<GenerateBlockScreen> createState() => _GenerateBlockScreenState();
 }
 
+/// El estado asociado a [GenerateBlockScreen].
+/// Maneja la lógica de carga de datos, la interacción del usuario con el formulario
+/// y el guardado final del bloque en Supabase.
 class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
   final supa = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
 
+  // Controladores y variables para la configuración del bloque.
   final _blockNameCtrl = TextEditingController(text: 'Bloque 1');
   int _weeks = 4;
-  final Set<int> _activeDays = {1, 2, 4, 5};
+  final Set<int> _activeDays = {1, 2, 4, 5}; // L, M, J, V por defecto
   late DateTime _startDate;
 
+  // Variables de estado para los datos cargados desde la BD.
   bool _isLoading = true;
   List<Map<String, dynamic>> _basicMovements = [];
   List<Map<String, dynamic>> _accessoryMovements = [];
   List<Map<String, dynamic>> _variants = [];
 
+  // Mapa que almacena la lista de ejercicios planificados para cada día de la semana.
   final Map<int, List<PlannedExercise>> _exercisesPerDay = {};
 
   @override
   void initState() {
     super.initState();
     _startDate = _getNextMonday(DateTime.now());
+    // Inicializa cada día activo con un ejercicio por defecto vacío.
     for (var day in _activeDays) {
       _exercisesPerDay[day] = [PlannedExercise()];
     }
     _loadInitialData();
   }
 
+  /// Carga los datos iniciales (movimientos y variantes) desde Supabase.
+  /// Se ejecuta una sola vez al iniciar la pantalla.
   Future<void> _loadInitialData() async {
     try {
       final responses = await Future.wait([
@@ -52,6 +63,7 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
       if (mounted) {
         setState(() {
           _variants = List<Map<String, dynamic>>.from(variantsRes);
+          // Filtra los movimientos en dos listas para facilitar su uso en la UI.
           _basicMovements = List<Map<String, dynamic>>.from(
               movementsRes.where((m) => m['type'] == 'Básico'));
           _accessoryMovements = List<Map<String, dynamic>>.from(
@@ -69,6 +81,7 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
     }
   }
 
+  /// Muestra un calendario emergente para que el usuario seleccione la fecha de inicio del bloque.
   Future<void> _selectStartDate() async {
     final DateTime? pickedDate = await showDatePicker(
       context: context,
@@ -81,12 +94,15 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
     }
   }
 
+  /// Valida el formulario, construye los objetos de datos y los sube a Supabase.
+  /// Crea un registro en la tabla 'blocks' y múltiples registros en 'plan_items'.
   Future<void> _generateBlock() async {
     if (!_formKey.currentState!.validate()) return;
 
     final uid = supa.auth.currentUser!.id;
     final startDate = _startDate;
 
+    // 1. Crea el registro principal del bloque.
     final blockResponse = await supa.from('blocks').insert({
       'user_id': uid,
       'name': _blockNameCtrl.text,
@@ -96,6 +112,7 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
     }).select('block_id').single();
     final blockId = blockResponse['block_id'];
 
+    // 2. Prepara todos los 'plan_items' (un registro por cada día de entrenamiento).
     final List<Map<String, dynamic>> planItemsToInsert = [];
     for (int week = 0; week < _weeks; week++) {
       for (int dayOfWeek in _activeDays.toList()..sort()) {
@@ -107,6 +124,7 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
             'user_id': uid,
             'block_id': blockId,
             'planned_date': yyyymmdd(date),
+            // La prescripción completa del día se guarda como un objeto JSON.
             'prescription': {
               'exercises': exercisesForThisDay.map((ex) {
                 // Preparamos las prescripciones para ser guardadas
@@ -134,10 +152,12 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
       }
     }
 
+    // 3. Sube todos los planes a la base de datos en una sola operación.
     if (planItemsToInsert.isNotEmpty) {
       await supa.from('plan_items').insert(planItemsToInsert);
     }
 
+    // 4. Muestra confirmación y vuelve a la pantalla principal.
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Bloque generado correctamente.')),
@@ -150,6 +170,7 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
     }
   }
 
+  /// Calcula la fecha del próximo lunes a partir de una fecha dada.
   DateTime _getNextMonday(DateTime date) {
     var checkDate = DateTime(date.year, date.month, date.day);
     if (checkDate.weekday == DateTime.monday) return checkDate;
@@ -157,6 +178,7 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
         .add(Duration(days: (DateTime.monday - checkDate.weekday + 7) % 7));
   }
 
+  /// El metodo build es principalmente UI
   @override
   Widget build(BuildContext context) {
     final dayLabels = { 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado', 7: 'Domingo' };
@@ -246,6 +268,8 @@ class _GenerateBlockScreenState extends State<GenerateBlockScreen> {
   }
 }
 
+/// Un widget que representa la sección de un día de entrenamiento completo (ej. Lunes).
+/// Contiene una lista de [_ExerciseEditor]s.
 class _DayEditor extends StatelessWidget {
   final String dayTitle;
   final List<PlannedExercise> exercises;
@@ -304,6 +328,7 @@ class _DayEditor extends StatelessWidget {
   }
 }
 
+/// Un widget para configurar un único ejercicio, sus variantes y sus prescripciones.
 class _ExerciseEditor extends StatelessWidget {
   final PlannedExercise exercise;
   final List<Map<String, dynamic>> basicMovements;
@@ -322,6 +347,8 @@ class _ExerciseEditor extends StatelessWidget {
     required this.onChanged,
   });
 
+  /// Muestra un Dialog emergente para que el usuario introduzca una nueva línea
+  /// de prescripción, con la opción de marcarla como 'Ramp Up'.
   Future<void> _showAddPrescriptionDialog(BuildContext context) async {
     final formKey = GlobalKey<FormState>();
     final setsCtrl = TextEditingController();
@@ -386,6 +413,13 @@ class _ExerciseEditor extends StatelessWidget {
     }
   }
 
+  /// El metodo build es principalmente UI
+  /// Muestra dropdowns para seleccionar el movimiento y las variantes,
+  /// así como la lista de prescripciones y un botón para añadir nuevas.
+  /// También incluye un switch para marcar el ejercicio como accesorio.
+  /// Las variantes y campos adicionales se muestran/ocultan según el estado.
+  /// Utiliza [onChanged] para notificar cambios al padre.
+  /// Utiliza [onRemove] para notificar que este ejercicio debe ser eliminado.
   @override
   Widget build(BuildContext context) {
     return Padding(

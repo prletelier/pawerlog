@@ -5,17 +5,27 @@ import '../utils/helpers.dart';
 import 'day_session_screen.dart';
 import 'generate_block_screen.dart';
 
+/// La pantalla principal de la aplicación.
+/// Muestra el plan de entrenamiento para un día seleccionado y permite navegar entre días.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// El estado para [HomeScreen].
+/// Maneja la fecha actual visible, carga los datos del plan y la sesión,
+/// y construye la interfaz de usuario correspondiente.
 class _HomeScreenState extends State<HomeScreen> {
   final supa = Supabase.instance.client;
   DateTime _cursorDate = DateTime.now();
 
-  // MODIFICADO: Ahora carga el plan, la sesión Y los sets completados
+  /// Carga todos los datos necesarios para un día específico desde Supabase.
+  /// Realiza tres consultas en paralelo:
+  /// 1. El 'plan_item' del día, que contiene la prescripción.
+  /// 2. La 'session' del día, que contiene el estado del entrenamiento (planificado, activo, etc.).
+  /// 3. Todos los 'sets' completados para ese día, para mostrar el resumen real.
+  /// Devuelve un mapa con toda esta información.
   Future<Map<String, dynamic>> _loadDayData(DateTime date) async {
     final uid = supa.auth.currentUser!.id;
     final day = yyyymmdd(date);
@@ -52,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
     };
   }
 
+  /// Muestra un selector de fecha emergente y actualiza la fecha visible.
   Future<void> _selectDate() async {
     final DateTime? pickedDate = await showDatePicker(
       context: context,
@@ -69,6 +80,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Construye un resumen legible de una prescripción planeada.
+  /// Ej: "2x5 @8 | 4x10-12 RIR2"
   String _buildPrescriptionSummary(Map<String, dynamic> exerciseData) {
     final prescriptions = (exerciseData['prescriptions'] as List? ?? []);
     if (prescriptions.isEmpty) return "Sin series definidas.";
@@ -81,6 +94,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }).join('  |  ');
   }
 
+  /// Construye el título completo de un ejercicio, combinando movimiento y variantes.
+  /// Ej: "Sentadillas - Pausa Tempo"
   String _buildExerciseTitle(Map<String, dynamic> exerciseData) {
     String title = exerciseData['movement'] ?? 'Ejercicio sin nombre';
     final variants = exerciseData['variants'] as List? ?? [];
@@ -90,6 +105,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return title;
   }
 
+  /// Construye la interfaz de usuario.
+  /// Usa un [FutureBuilder] para cargar y mostrar los datos del día seleccionado.
+  /// Permite navegar entre días y comenzar o continuar una sesión.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -153,6 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Text('No hay entrenamiento planificado para este día.'));
           }
 
+          // Botón principal que cambia según si la sesión ha comenzado o no.
           Widget mainButton = ElevatedButton.icon(
             icon: Icon(sessionStatus == 'planificada' ? Icons.play_arrow : Icons.directions_run),
             label: Text(sessionStatus == 'planificada' ? 'Comenzar Sesión' : 'Continuar Sesión'),
@@ -161,6 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
               try {
                 Map<String, dynamic>? updatedSession = session;
                 if (sessionStatus == 'planificada') {
+                  // Si la sesión no ha empezado, la marca como 'activa' en la BD.
                   updatedSession = await supa.from('sessions').upsert({
                     'user_id': supa.auth.currentUser!.id,
                     'session_date': yyyymmdd(_cursorDate),
@@ -169,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   }).select().single();
                 }
 
-                // El 'await' es clave para esperar a que vuelvas de la pantalla
+                // Navega a la pantalla de la sesión y espera a que el usuario vuelva.
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -179,7 +199,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         initialSessionData: updatedSession,
                       )),
                 );
-                // Este setState se ejecutará DESPUÉS de que vuelvas.
+                // Refresca la pantalla principal para reflejar cualquier cambio.
+                // Se ejecutará DESPUÉS de que vuelvas.
                 setState(() {});
 
               } catch (e) {
@@ -202,8 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // Obtenemos los ejercicios planeados como antes
           final plannedExercises = prescription?['exercises'] as List? ?? [];
 
-          // --- INICIO DE LA LÓGICA MODIFICADA ---
-          // Agrupamos los sets guardados por nombre de ejercicio
+          // Agrupa los sets registrados por nombre de ejercicio para mostrarlos.
           final Map<String, List<dynamic>> groupedLoggedSets = {};
           for (var set in loggedSets) {
             final exerciseName = set['exercise_name'];
@@ -216,6 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.all(8.0),
             child: Column(
               children: [
+                // FutureBuilder anidado para construir el título del bloque/día.
                 Card(
                   child: Column(
                     children: [
@@ -238,9 +259,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       else
                         const ListTile(title: Text("Resumen del día"), subtitle: Text("Toca comenzar para ver los ejercicios")),
 
-                      // --- UI MODIFICADA ---
-                      // Si la sesión NO está planificada (ya empezó o terminó) Y hay sets guardados,
-                      // mostramos los datos reales. Si no, mostramos el plan.
+                      // Si la sesión ya empezó y hay datos, muestra el resumen real.
+                      // Si no, muestra el plan.
                       if (sessionStatus != 'planificada' && loggedSets.isNotEmpty)
                       // Mostramos los datos REALES
                         ...groupedLoggedSets.entries.map((entry) {
@@ -264,7 +284,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           final summary = _buildPrescriptionSummary(exerciseData);
                           return ListTile(dense: true, title: Text(title), subtitle: Text(summary));
                         }).toList(),
-                      // --- FIN UI MODIFICADA ---
                     ],
                   ),
                 ),
