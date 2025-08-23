@@ -1,0 +1,46 @@
+# Nombre del workflow que verás en la pestaña "Actions" de GitHub
+name: Deploy Documentation to GitHub Pages
+
+# Disparador: Este workflow se ejecutará cada vez que hagas un 'push' a la rama 'main'
+on:
+  push:
+    branches:
+      - main
+
+# Permisos necesarios para que la acción pueda escribir en tu repositorio
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Tareas a ejecutar
+jobs:
+  deploy:
+    runs-on: ubuntu-latest # Se ejecuta en una máquina virtual con Ubuntu
+    steps:
+      # 1. Clona tu repositorio en la máquina virtual
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Configura el entorno de Flutter/Dart
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      # 3. Genera la documentación
+      - name: Generate documentation
+        run: dart doc .
+
+      # 4. Configura GitHub Pages
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # 5. Sube la documentación generada como un "artefacto"
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: doc/api # La carpeta que contiene la documentación
+
+      # 6. Despliega el artefacto en GitHub Pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
