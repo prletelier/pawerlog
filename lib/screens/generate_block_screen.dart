@@ -354,9 +354,12 @@ class _ExerciseEditor extends StatelessWidget {
     final setsCtrl = TextEditingController();
     final repsCtrl = TextEditingController();
     final effortCtrl = TextEditingController();
-    final isRampUpNotifier = ValueNotifier<bool>(false);
 
-    final PrescribedSet? newSet = await showDialog<PrescribedSet>(
+    // Guardamos el estado de los checkboxes
+    final rampUpNotifier = ValueNotifier<bool>(false);
+    final rampDownNotifier = ValueNotifier<bool>(false);
+
+    final List<PrescribedSet>? generatedSets = await showDialog<List<PrescribedSet>>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -366,17 +369,35 @@ class _ExerciseEditor extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextFormField(controller: setsCtrl, decoration: const InputDecoration(labelText: 'Series', hintText: 'ej. 1, 3, 4')),
-                TextFormField(controller: repsCtrl, decoration: const InputDecoration(labelText: 'Reps', hintText: 'ej. 5, 8-10')),
-                TextFormField(controller: effortCtrl, decoration: const InputDecoration(labelText: 'Esfuerzo', hintText: 'ej. @8, RIR2, -15%')),
+                TextFormField(controller: setsCtrl, decoration: const InputDecoration(labelText: 'Series', hintText: 'ej. 3')),
+                TextFormField(controller: repsCtrl, decoration: const InputDecoration(labelText: 'Reps', hintText: 'ej. 5')),
+                TextFormField(controller: effortCtrl, decoration: const InputDecoration(labelText: 'Esfuerzo', hintText: 'ej. @8, -15%')),
+
+                // --- NUEVOS CHECKBOXES ---
                 ValueListenableBuilder<bool>(
-                  valueListenable: isRampUpNotifier,
+                  valueListenable: rampUpNotifier,
                   builder: (context, isRampUp, child) {
                     return CheckboxListTile(
                       title: const Text('Ramp Up'),
                       value: isRampUp,
                       onChanged: (val) {
-                        isRampUpNotifier.value = val ?? false;
+                        rampUpNotifier.value = val ?? false;
+                        if(val == true) rampDownNotifier.value = false; // Desactiva el otro
+                      },
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                    );
+                  },
+                ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: rampDownNotifier,
+                  builder: (context, isRampDown, child) {
+                    return CheckboxListTile(
+                      title: const Text('Ramp Down'),
+                      value: isRampDown,
+                      onChanged: (val) {
+                        rampDownNotifier.value = val ?? false;
+                        if(val == true) rampUpNotifier.value = false; // Desactiva el otro
                       },
                       controlAffinity: ListTileControlAffinity.leading,
                       contentPadding: EdgeInsets.zero,
@@ -390,25 +411,39 @@ class _ExerciseEditor extends StatelessWidget {
             TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
             ElevatedButton(
               onPressed: () {
-                if (formKey.currentState?.validate() ?? false) {
-                  final set = parsePrescriptionLine(
-                    setsStr: setsCtrl.text,
-                    repsStr: repsCtrl.text,
-                    effortStr: effortCtrl.text,
-                    isRampUp: isRampUpNotifier.value,
-                  );
-                  Navigator.of(context).pop(set);
+                if (formKey.currentState!.validate()) {
+                  final setCount = int.tryParse(setsCtrl.text) ?? 0;
+                  final reps = repsCtrl.text;
+                  String currentEffort = effortCtrl.text;
+                  final isRampUp = rampUpNotifier.value;
+                  final isRampDown = rampDownNotifier.value;
+
+                  final List<PrescribedSet> sets = [];
+
+                  // Si es rampa (up o down), generamos series individuales
+                  if ((isRampUp || isRampDown) && setCount > 0) {
+                    for (int i = 0; i < setCount; i++) {
+                      sets.add(PrescribedSet(sets: "1", reps: reps, effort: currentEffort));
+                      currentEffort = isRampUp ? incrementEffort(currentEffort) : decrementEffort(currentEffort);
+                    }
+                  }
+                  // Si no, es un bloque normal (o un backoff)
+                  else {
+                    sets.add(PrescribedSet(sets: setsCtrl.text, reps: reps, effort: currentEffort));
+                  }
+
+                  Navigator.of(context).pop(sets);
                 }
               },
-              child: const Text('Añadir'),
+              child: const Text('Generar'),
             ),
           ],
         );
       },
     );
 
-    if (newSet != null) {
-      exercise.prescriptions.add(newSet);
+    if (generatedSets != null && generatedSets.isNotEmpty) {
+      exercise.prescriptions.addAll(generatedSets);
       onChanged();
     }
   }
@@ -418,8 +453,6 @@ class _ExerciseEditor extends StatelessWidget {
   /// así como la lista de prescripciones y un botón para añadir nuevas.
   /// También incluye un switch para marcar el ejercicio como accesorio.
   /// Las variantes y campos adicionales se muestran/ocultan según el estado.
-  /// Utiliza [onChanged] para notificar cambios al padre.
-  /// Utiliza [onRemove] para notificar que este ejercicio debe ser eliminado.
   @override
   Widget build(BuildContext context) {
     return Padding(

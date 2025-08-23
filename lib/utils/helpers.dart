@@ -87,16 +87,42 @@ PrescribedSet parsePrescriptionLine({
 /// Si el esfuerzo es RPE (ej. "@7"), devuelve "@8".
 /// Si el esfuerzo es RIR (ej. "RIR 2"), devuelve "RIR 1".
 String incrementEffort(String effort) {
-  final number = parseRpe(effort); // Usa la función que ya teníamos
+  final number = parseRpe(effort);
   if (number == null) return effort;
 
+  // Función interna para formatear el número: si es entero, no muestra decimales.
+  String formatNumber(double num) {
+    if (num == num.toInt()) {
+      return num.toInt().toString();
+    }
+    return num.toString();
+  }
+
   if (effort.toLowerCase().contains('rir')) {
-    // Si es RIR, el esfuerzo aumenta al DISMINUIR el número
-    final newRir = (number - 1).clamp(0, 10);
-    return 'RIR $newRir';
+    final newRir = (number - 1).clamp(0.0, 10.0);
+    return 'RIR ${formatNumber(newRir)}';
   } else {
-    // Si es RPE, el esfuerzo aumenta al AUMENTAR el número
-    final newRpe = (number + 1).clamp(0, 10);
-    return '@$newRpe';
+    final newRpe = (number + 1).clamp(0.0, 10.0);
+    return '@${formatNumber(newRpe)}';
+  }
+}
+
+/// Decrementa un string de esfuerzo. Ej: "@8" -> "@7"
+String decrementEffort(String effort) {
+  final number = parseRpe(effort);
+  if (number == null) return effort;
+
+  // Para Ramp Down, tanto RPE como RIR disminuyen el número
+  final newEffort = (number - 1).clamp(0.0, 10.0);
+
+  String formatNumber(double num) {
+    if (num == num.toInt()) return num.toInt().toString();
+    return num.toString();
+  }
+
+  if (effort.toLowerCase().contains('rir')) {
+    return 'RIR ${formatNumber(newEffort)}';
+  } else {
+    return '@${formatNumber(newEffort)}';
   }
 }
