@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, user-scalable=no">
+  <meta name="description" content="pawerlog API docs, for the Dart programming language.">
+  <title>pawerlog - Dart API docs</title>
+
+
+  
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet">
+  
+  <link rel="stylesheet" href="static-assets/github.css?v1">
+  <link rel="stylesheet" href="static-assets/styles.css?v1">
+  <link rel="icon" href="static-assets/favicon.png?v1">
+  
+</head>
+
+<body data-base-href="" data-using-base-href="false" class="light-theme">
+<div id="overlay-under-drawer"></div>
+<header id="title">
+  <span id="sidenav-left-toggle" class="material-symbols-outlined" role="button" tabindex="0">menu</span>
+  <ol class="breadcrumbs gt-separated dark hidden-xs">
+    <li class="self-crumb">pawerlog package</li>
+  </ol>
+  <div class="self-name">pawerlog</div>
+  <form class="search navbar-right" role="search">
+    <input type="text" id="search-box" autocomplete="off" disabled class="form-control typeahead" placeholder="Loading search...">
+  </form>
+  <button class="toggle" id="theme-button" title="Toggle between light and dark mode" aria-label="Light and dark mode toggle">
+    <span id="dark-theme-button" class="material-symbols-outlined" aria-hidden="true">
+      dark_mode
+    </span>
+    <span id="light-theme-button" class="material-symbols-outlined" aria-hidden="true">
+      light_mode
+    </span>
+  </button>
+</header>
+<main>
+  <div id="dartdoc-main-content" class="main-content">
+      
+<section class="desc markdown">
+  <h1 id="powerlog">Powerlog</h1>
+<p><strong>Powerlog</strong> es una aplicación móvil diseñada para atletas de powerlifting que buscan llevar un registro detallado de sus entrenamientos. La app permite gestionar sesiones de entrenamiento, registrar ejercicios, y realizar un seguimiento del progreso de manera eficiente y organizada.</p>
+<h2 id="caractersticas-principales">Características Principales</h2>
+<ul>
+<li><strong>Generación de bloques de entrenamiento</strong>: Crea y organiza bloques personalizados para tus ciclos de entrenamiento.</li>
+<li><strong>Registro de sesiones con cronómetro</strong>: Lleva un control preciso del tiempo de descanso entre series y ejercicios.</li>
+<li><strong>Selección de ejercicios desde base de datos</strong>: Accede a una lista de ejercicios predefinidos o personaliza los tuyos.</li>
+<li><strong>Sistema de variantes por etiquetas</strong>: Clasifica y organiza ejercicios mediante etiquetas para una búsqueda más rápida.</li>
+<li><strong>Sincronización con Supabase</strong>: Almacena y recupera datos de manera segura en la nube.</li>
+<li><strong>Validación de datos</strong>: Asegura que los datos ingresados sean correctos y consistentes.</li>
+<li><strong>Notificaciones al finalizar descansos</strong>: Recibe alertas cuando el temporizador de descanso termina.</li>
+<li><strong>Interfaz intuitiva</strong>: Diseñada para facilitar la navegación y el uso diario.</li>
+</ul>
+<h2 id="stack-tecnolgico">Stack Tecnológico</h2>
+<ul>
+<li><strong>Flutter</strong>: Framework principal para el desarrollo de la interfaz de usuario.</li>
+<li><strong>Dart</strong>: Lenguaje de programación utilizado en la aplicación.</li>
+<li><strong>Supabase</strong>: Backend para la gestión de datos en tiempo real.</li>
+<li><strong>SQLite</strong>: Base de datos local para almacenamiento offline.</li>
+<li><strong>Provider/Riverpod</strong>: Gestión del estado de la aplicación.</li>
+<li><strong>Gradle</strong>: Herramienta de construcción para la integración con Android.</li>
+<li><strong>Kotlin y Java</strong>: Compatibilidad con el ecosistema de Android.</li>
+<li><strong>C++</strong>: Uso en componentes nativos específicos.</li>
+</ul>
+<h2 id="estructura-del-proyecto">Estructura del Proyecto</h2>
+<p>El proyecto está organizado en las siguientes carpetas principales:</p>
+<ul>
+<li><strong><code>screens</code></strong>: Contiene las pantallas principales de la aplicación, como el registro de sesiones, la selección de ejercicios y la configuración de bloques.</li>
+<li><strong><code>widgets</code></strong>: Incluye componentes reutilizables de la interfaz de usuario, como botones personalizados, temporizadores y listas.</li>
+<li><strong><code>utils</code></strong>: Funciones y utilidades auxiliares, como validaciones, formateo de datos y manejo de errores.</li>
+<li><strong><code>models</code></strong>: Define las clases y estructuras de datos utilizadas en la aplicación, como ejercicios, sesiones y bloques de entrenamiento.</li>
+</ul>
+<h2 id="contribuciones">Contribuciones</h2>
+<p>Si deseas contribuir al desarrollo de <strong>Powerlog</strong>, por favor abre un issue o envía un pull request. ¡Toda ayuda es bienvenida!</p>
+<h2 id="licencia">Licencia</h2>
+<p>Este proyecto está bajo la licencia <a href="LICENSE">MIT</a>.</p>
+</section>
+
+
+      <section class="summary">
+          <h2>Libraries</h2>
+        <dl>
+          <dt id="main">
+  <span class="name"><a href="main/">main</a></span> 
+
+</dt>
+<dd>
+</dd>
+
+          <dt id="day_session_screen">
+  <span class="name"><a href="screens_day_session_screen/">screens\day_session_screen</a></span> 
+
+</dt>
+<dd>
+</dd>
+
+          <dt id="generate_block_screen">
+  <span class="name"><a href="screens_generate_block_screen/">screens\generate_block_screen</a></span> 
+
+</dt>
+<dd>
+</dd>
+
+          <dt id="home_screen">
+  <span class="name"><a href="screens_home_screen/">screens\home_screen</a></span> 
+
+</dt>
+<dd>
+</dd>
+
+          <dt id="log_exercise_screen">
+  <span class="name"><a href="screens_log_exercise_screen/">screens\log_exercise_screen</a></span> 
+
+</dt>
+<dd>
+</dd>
+
+          <dt id="helpers">
+  <span class="name"><a href="utils_helpers/">utils\helpers</a></span> 
+
+</dt>
+<dd>
+</dd>
+
+          <dt id="models">
+  <span class="name"><a href="utils_models/">utils\models</a></span> 
+
+</dt>
+<dd>
+</dd>
+
+          <dt id="series_row_widget">
+  <span class="name"><a href="widgets_series_row_widget/">widgets\series_row_widget</a></span> 
+
+</dt>
+<dd>
+</dd>
+
+        </dl>
+      </section>
+  </div> <!-- /.main-content -->
+  <div id="dartdoc-sidebar-left" class="sidebar sidebar-offcanvas-left">
+    <!-- The search input and breadcrumbs below are only responsively visible at low resolutions. -->
+<header id="header-search-sidebar" class="hidden-l">
+  <form class="search-sidebar" role="search">
+    <input type="text" id="search-sidebar" autocomplete="off" disabled class="form-control typeahead" placeholder="Loading search...">
+  </form>
+</header>
+<ol class="breadcrumbs gt-separated dark hidden-l" id="sidebar-nav">
+    <li class="self-crumb">pawerlog package</li>
+</ol>
+
+    <h5 class="hidden-xs"><span class="package-name">pawerlog</span> <span class="package-kind">package</span></h5>
+    <ol>
+      <li class="section-title">Libraries</li>
+      <li><a href="main/">main</a></li>
+      <li><a href="screens_day_session_screen/">screens\day_session_screen</a></li>
+      <li><a href="screens_generate_block_screen/">screens\generate_block_screen</a></li>
+      <li><a href="screens_home_screen/">screens\home_screen</a></li>
+      <li><a href="screens_log_exercise_screen/">screens\log_exercise_screen</a></li>
+      <li><a href="utils_helpers/">utils\helpers</a></li>
+      <li><a href="utils_models/">utils\models</a></li>
+      <li><a href="widgets_series_row_widget/">widgets\series_row_widget</a></li>
+</ol>
+
+  </div>
+  <div id="dartdoc-sidebar-right" class="sidebar sidebar-offcanvas-right">
+  </div>
+</main>
+<footer>
+  <span class="no-break">
+    pawerlog
+      1.0.0+1
+  </span>
+  
+</footer>
+
+
+<script src="static-assets/highlight.pack.js?v1"></script>
+<script src="static-assets/docs.dart.js"></script>
+
+</body>
+</html>
+
