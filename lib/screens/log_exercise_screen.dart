@@ -17,19 +17,13 @@ class LogExerciseScreen extends StatefulWidget {
   final DateTime date;
   final Map<String, dynamic> exerciseData;
 
-  const LogExerciseScreen({
-    super.key,
-    required this.date,
-    required this.exerciseData,
-  });
+  const LogExerciseScreen(
+      {super.key, required this.date, required this.exerciseData});
 
   @override
   State<LogExerciseScreen> createState() => _LogExerciseScreenState();
 }
 
-/// El estado para [LogExerciseScreen].
-/// Maneja la carga y guardado de sets, el temporizador de descanso,
-/// y la actualización de la UI.
 class _LogExerciseScreenState extends State<LogExerciseScreen> {
   final supa = Supabase.instance.client;
   final _audioPlayer = AudioPlayer();
@@ -54,10 +48,6 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     _loadAndBuildState();
   }
 
-  /// Construye el título del ejercicio a partir de los datos proporcionados.
-  /// Incluye el nombre del movimiento y las variantes seleccionadas.
-  /// Si no hay nombre, usa un valor por defecto.
-  /// Ejemplo: "Sentadilla - Competición Peso Libre"
   String _buildExerciseTitle(Map<String, dynamic> exerciseData) {
     String title = exerciseData['movement'] ?? 'Ejercicio sin nombre';
     final variants = exerciseData['variants'] as List? ?? [];
@@ -67,17 +57,12 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     return title;
   }
 
-  /// Carga los sets registrados desde la base de datos para el ejercicio y fecha dados.
-  /// Si no hay sets registrados, inicializa los sets desde el plan del ejercicio.
-  /// Actualiza el estado de la UI en consecuencia.
   Future<void> _loadAndBuildState() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
-
     try {
       final uid = supa.auth.currentUser!.id;
       final day = yyyymmdd(widget.date);
-
       final response = await supa
           .from('sets')
           .select()
@@ -93,7 +78,6 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
       _workSets.clear();
 
       if (response.isNotEmpty) {
-        // Si hay datos en la BD, se construye la pantalla a partir de ellos.
         final loggedSetsData = response as List<dynamic>;
         for (var data in loggedSetsData) {
           final set = LoggedSet(
@@ -111,7 +95,6 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
           }
         }
       } else {
-        // Si no hay datos, se construye la pantalla a partir del plan.
         _initializeSetsFromPlan();
       }
     } catch (e) {
@@ -124,23 +107,19 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     }
   }
 
-  /// Inicializa las listas de sets de calentamiento y efectivos
-  /// a partir de las prescripciones del plan de ejercicio.
-  /// Maneja rampas de esfuerzo incrementando el RPE o disminuyendo RIR.
   void _initializeSetsFromPlan() {
     _warmupSets = [LoggedSet(seriesIndex: 1, isWarmup: true)];
     _workSets = [];
-    final prescriptions = widget.exerciseData['prescriptions'] as List? ?? [];
+    final prescriptions = List<Map<String, dynamic>>.from(
+        widget.exerciseData['prescriptions'] ?? []);
     int seriesCounter = 1;
 
     for (var p in prescriptions) {
-      final setData = p as Map<String, dynamic>;
-      final isRampUp = setData['isRampUp'] as bool? ?? false;
-      final setCount = int.tryParse(setData['sets']?.toString() ?? '1') ?? 1;
-      final reps = setData['reps']?.toString() ?? '';
-      String currentEffort = setData['effort']?.toString() ?? '';
+      final isRampUp = p['isRampUp'] as bool? ?? false;
+      final setCount = int.tryParse(p['sets']?.toString() ?? '1') ?? 1;
+      final reps = p['reps']?.toString() ?? '';
+      String currentEffort = p['effort']?.toString() ?? '';
 
-      // Si es una rampa, genera series individuales con esfuerzo incremental.
       if (isRampUp && setCount > 1) {
         for (int i = 0; i < setCount; i++) {
           final set = LoggedSet(seriesIndex: seriesCounter++, isWarmup: false);
@@ -149,9 +128,7 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
           _workSets.add(set);
           currentEffort = incrementEffort(currentEffort);
         }
-      }
-      // Si no, añadimos el bloque tal cual
-      else {
+      } else {
         for (int i = 0; i < setCount; i++) {
           final set = LoggedSet(seriesIndex: seriesCounter++, isWarmup: false);
           set.repsCtrl.text = reps;
@@ -162,10 +139,12 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
     }
   }
 
-  /// Maneja el evento de marcar o desmarcar el check de una serie.
-  /// Actualiza el estado 'is_completed' en la base de datos.
   Future<void> _handleSetCompletion(LoggedSet set) async {
     try {
+      if (set.isCompleted) {
+        await _handleSetRemoval(set);
+        return;
+      }
       final weight = double.tryParse(set.weightCtrl.text);
       final reps = int.tryParse(set.repsCtrl.text);
       if (weight == null || reps == null) {
@@ -176,47 +155,85 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
         }
         return;
       }
-
       final uid = supa.auth.currentUser!.id;
       final day = yyyymmdd(widget.date);
       final sessionRes = await supa
           .from('sessions')
           .upsert({'user_id': uid, 'session_date': day}).select().single();
       final sessionId = sessionRes['session_id'];
-
-      final newCompletionState = !set.isCompleted;
-
       final Map<String, dynamic> setData = {
-        'session_id': sessionId, 'user_id': uid, 'session_date': day,
-        'exercise_name': _title, 'is_warmup': set.isWarmup,
-        'set_index': set.seriesIndex, 'weight': weight,
-        'reps': reps, 'rpe': set.rpeCtrl.text,
-        'is_completed': newCompletionState,
+        'session_id': sessionId,
+        'user_id': uid,
+        'session_date': day,
+        'exercise_name': _title,
+        'is_warmup': set.isWarmup,
+        'set_index': set.seriesIndex,
+        'weight': weight,
+        'reps': reps,
+        'rpe': set.rpeCtrl.text,
+        'is_completed': true,
       };
-
       if (set.db_id != null) {
         setData['set_id'] = set.db_id;
       }
-
       final savedSetData =
       await supa.from('sets').upsert(setData).select().single();
-
       setState(() {
-        set.isCompleted = newCompletionState;
+        set.isCompleted = true;
         set.db_id = savedSetData['set_id'];
       });
-
-      if (newCompletionState == true) {
-        _startRestTimer(isWarmup: set.isWarmup);
-      } else {
-        _restTimer?.cancel();
-        if(mounted) setState(() => _restSecondsRemaining = 0);
-      }
+      _recalculateBackOffs();
+      _startRestTimer(isWarmup: set.isWarmup);
     } catch (e) {
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red));
       }
     }
+  }
+
+  /// Recalcula los pesos sugeridos para las series de trabajo no completadas
+  /// basándose en la primera serie completada (top set) y los porcentajes de
+  /// reducción de esfuerzo indicados en el campo de esfuerzo (RPE/RIR).
+  void _recalculateBackOffs() {
+    LoggedSet? topSet;
+
+    // 1. Buscamos la PRIMERA serie de trabajo (work set) completada.
+    //    Esta será nuestra única referencia (la top set).
+    try {
+      topSet = _workSets.firstWhere(
+              (s) => s.isCompleted && !s.rpeCtrl.text.startsWith('-'));
+    } catch (e) {
+      // Si no se encuentra ninguna, no hacemos nada.
+      return;
+    }
+
+    // Si no hay una top set definida, salimos.
+    if (topSet == null) return;
+
+    final topSetWeight = double.tryParse(topSet.weightCtrl.text);
+    if (topSetWeight == null) return;
+
+    // 2. Ahora, recorremos TODAS las series de trabajo.
+    for (final s in _workSets) {
+      // Solo modificamos las que AÚN NO han sido completadas.
+      if (!s.isCompleted) {
+        final effort = s.rpeCtrl.text;
+        if (effort.startsWith('-') && effort.endsWith('%')) {
+          final percentageString =
+          effort.replaceAll('-', '').replaceAll('%', '').trim();
+          final percentage = double.tryParse(percentageString);
+          if (percentage != null) {
+            final backOffWeight = topSetWeight * (1 - (percentage / 100));
+            // Rellenamos el campo de peso con el valor calculado.
+            s.weightCtrl.text = backOffWeight.toStringAsFixed(1);
+          }
+        }
+      }
+    }
+
+    // 3. Forzamos un redibujado de la UI para mostrar los nuevos pesos sugeridos.
+    setState(() {});
   }
 
   /// Maneja el evento de eliminar una serie de la lista, tanto de la UI

@@ -111,13 +111,22 @@ class _DaySessionScreenState extends State<DaySessionScreen> {
     _completedExercises.clear();
     for (final exerciseData in _plannedExercises) {
       final title = _buildExerciseTitle(exerciseData);
-      final prescriptions = exerciseData['prescriptions'] as List? ?? [];
+      final prescriptions = List<Map<String, dynamic>>.from(exerciseData['prescriptions'] ?? []);
       if (prescriptions.isEmpty) continue;
 
       int plannedWorkSetsCount = 0;
       for (var p in prescriptions) {
-        // CORREGIDO: Asegura que 'sets' se trate como String antes de parsear
-        plannedWorkSetsCount += int.tryParse(p['sets']?.toString() ?? '1') ?? 1;
+        final isRampUp = p['isRampUp'] as bool? ?? false;
+        final setCount = int.tryParse(p['sets']?.toString() ?? '1') ?? 1;
+        // Si es una rampa, cada set es una línea. Si no, es un bloque.
+        if (isRampUp) {
+          plannedWorkSetsCount += setCount;
+        } else {
+          // Si no es rampa y no es backoff, es una top set.
+          if (!(p['effort'] as String? ?? '').startsWith('-')) {
+            plannedWorkSetsCount += setCount;
+          }
+        }
       }
       if (plannedWorkSetsCount == 0) continue;
 
