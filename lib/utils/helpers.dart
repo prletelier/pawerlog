@@ -126,3 +126,29 @@ String decrementEffort(String effort) {
     return '@${formatNumber(newEffort)}';
   }
 }
+
+String buildAdvancedPrescriptionSummary(List<dynamic> prescriptions) {
+  if (prescriptions.isEmpty) return "Sin series definidas.";
+
+  final summaries = <String>[];
+  for (final p in prescriptions) {
+    final setData = p as Map<String, dynamic>;
+    final sets = setData['sets']?.toString() ?? '1';
+    final reps = setData['reps']?.toString() ?? 'N/A';
+    final effort = setData['effort']?.toString() ?? '';
+    final isRampUp = setData['isRampUp'] as bool? ?? false;
+
+    if (isRampUp) {
+      // Si es ramp up, busca el esfuerzo final
+      String finalEffort = effort;
+      final setCount = int.tryParse(sets) ?? 1;
+      for (int i = 0; i < setCount - 1; i++) {
+        finalEffort = incrementEffort(finalEffort);
+      }
+      summaries.add('$sets x $reps $effort - $finalEffort');
+    } else {
+      summaries.add('$sets x $reps $effort');
+    }
+  }
+  return summaries.join(' + ');
+}
