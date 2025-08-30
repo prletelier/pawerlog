@@ -4,6 +4,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/helpers.dart';
 import 'day_session_screen.dart';
 import 'generate_block_screen.dart';
+import 'blocks_screen.dart';
+import 'calendar_screen.dart';
+import 'history_screen.dart';
+import 'stats_screen.dart';
 
 /// La pantalla principal de la aplicación.
 /// Muestra el plan de entrenamiento para un día seleccionado y permite navegar entre días.
@@ -112,10 +116,22 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading: false, // Mantenemos esto para control total
         title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // No cambiamos el layout, solo añadimos un botón al principio
           children: [
+            // Builder es necesario para darle al IconButton el 'context' correcto para encontrar el Drawer
+            Builder(
+                builder: (context) {
+                  return IconButton(
+                    icon: const Icon(Icons.menu),
+                    onPressed: () {
+                      // Este comando abre el menú lateral
+                      Scaffold.of(context).openDrawer();
+                    },
+                  );
+                }
+            ),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -146,6 +162,65 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.chevron_right),
               onPressed: () => setState(
                       () => _cursorDate = _cursorDate.add(const Duration(days: 1))),
+            ),
+          ],
+        ),
+      ),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(
+                color: Color(0xFF6F56B5), // Tu color principal
+              ),
+              child: Text(
+                'Powerlog',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home_outlined),
+              title: const Text('Sesión del Día'),
+              onTap: () {
+                // Cierra el menú y no hace nada más porque ya estamos aquí
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.view_quilt_outlined),
+              title: const Text('Bloques'),
+              onTap: () {
+                Navigator.pop(context); // Cierra el menú
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const BlocksScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.calendar_today_outlined),
+              title: const Text('Calendario'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const CalendarScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.history_edu_outlined),
+              title: const Text('Registro Histórico'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.bar_chart_outlined),
+              title: const Text('Estadísticas'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const StatsScreen()));
+              },
             ),
           ],
         ),
