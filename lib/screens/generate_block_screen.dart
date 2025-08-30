@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/helpers.dart';
 import '../utils/models.dart';
 import 'home_screen.dart';
-import 'dart:math';
 
 /// Una pantalla Stateful que permite al usuario configurar y generar un nuevo
 /// bloque de entrenamiento completo.

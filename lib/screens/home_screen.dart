@@ -276,14 +276,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             title: Text(exerciseTitle),
                             subtitle: Text(summary, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
                           );
-                        }).toList()
+                        })
                       else
                       // Mostramos el PLAN
                         ...plannedExercises.map((exerciseData) {
                           final title = _buildExerciseTitle(exerciseData);
                           final summary = _buildPrescriptionSummary(exerciseData);
                           return ListTile(dense: true, title: Text(title), subtitle: Text(summary));
-                        }).toList(),
+                        }),
                     ],
                   ),
                 ),

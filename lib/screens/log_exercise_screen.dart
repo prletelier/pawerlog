@@ -72,8 +72,12 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
           .order('is_warmup', ascending: false)
           .order('set_index', ascending: true);
 
-      _warmupSets.forEach((s) => s.dispose());
-      _workSets.forEach((s) => s.dispose());
+      for (var s in _warmupSets) {
+        s.dispose();
+      }
+      for (var s in _workSets) {
+        s.dispose();
+      }
       _warmupSets.clear();
       _workSets.clear();
 
@@ -207,9 +211,6 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
       // Si no se encuentra ninguna, no hacemos nada.
       return;
     }
-
-    // Si no hay una top set definida, salimos.
-    if (topSet == null) return;
 
     final topSetWeight = double.tryParse(topSet.weightCtrl.text);
     if (topSetWeight == null) return;
@@ -399,7 +400,7 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
                     onCheckChanged: () => _handleSetCompletion(set),
                     onRemove: () => _handleSetRemoval(set),
                   );
-                }).toList(),
+                }),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(onPressed: _addWarmupSet, icon: const Icon(Icons.add), label: const Text('Añadir Calentamiento'),),
@@ -422,7 +423,7 @@ class _LogExerciseScreenState extends State<LogExerciseScreen> {
                     onCheckChanged: () => _handleSetCompletion(set),
                     onRemove: () => _handleSetRemoval(set),
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),

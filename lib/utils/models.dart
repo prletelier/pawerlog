@@ -34,8 +34,8 @@ class PlannedExercise {
     this.isAccessory = false,
     List<PrescribedSet>? prescriptions,
     this.notes = '',
-  }) : this.selectedVariants = selectedVariants ?? ['Competición'],
-        this.prescriptions = prescriptions ?? []; // <-- Crea una lista vacía
+  }) : selectedVariants = selectedVariants ?? ['Competición'],
+        prescriptions = prescriptions ?? []; // <-- Crea una lista vacía
 }
 
 /// Representa una serie individual que ha sido o será registrada por el usuario.
