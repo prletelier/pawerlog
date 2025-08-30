@@ -12,7 +12,8 @@ import 'stats_screen.dart';
 /// La pantalla principal de la aplicación.
 /// Muestra el plan de entrenamiento para un día seleccionado y permite navegar entre días.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final DateTime? initialDate;
+  const HomeScreen({super.key, this.initialDate});
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -107,6 +108,12 @@ class _HomeScreenState extends State<HomeScreen> {
       title += ' - ${variants.join(' ')}';
     }
     return title;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _cursorDate = widget.initialDate ?? DateTime.now();
   }
 
   /// Construye la interfaz de usuario.

@@ -152,3 +152,14 @@ String buildAdvancedPrescriptionSummary(List<dynamic> prescriptions) {
   }
   return summaries.join(' + ');
 }
+
+/// Encuentra la próxima fecha para un día de la semana específico (1=Lunes, 7=Domingo).
+DateTime findNextWeekday(DateTime from, int weekday) {
+  var date = DateTime(from.year, from.month, from.day);
+  if (date.weekday == weekday) {
+    // Si hoy es el día que buscamos, lo devolvemos
+    return date;
+  }
+  // Si no, avanzamos hasta encontrarlo
+  return date.add(Duration(days: (weekday - date.weekday + 7) % 7));
+}
